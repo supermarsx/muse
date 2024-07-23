@@ -7,7 +7,7 @@ This is an auxiliary library designed to be used by other userscripts. It provid
 To use this library, include it in your userscript by adding the following lines to your script's metadata:
 
 ```javascript
-// @require  https://raw.githubusercontent.com/supermarsx/muse/main/dist/_muse_.js
+// @require  https://raw.githubusercontent.com/supermarsx/muse/main/dist/_muse.js
 ```
 
 ## Usage Examples
