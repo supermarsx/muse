@@ -1,0 +1,30 @@
+{
+    "compilerOptions": {
+        "target": "es2023",
+        "module": "ES2022",
+        "moduleResolution": "Bundler",
+        "resolveJsonModule": true,
+        "esModuleInterop": true,
+        "strict": true,
+        "allowUnreachableCode": false,
+        "allowUnusedLabels": false,
+        "exactOptionalPropertyTypes": true,
+        "noFallthroughCasesInSwitch": true,
+        "noImplicitAny": true,
+        "noImplicitOverride": true,
+        "noImplicitReturns": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "allowJs": false,
+        "jsx": "react",
+        "outDir": "./dist",
+        "paths": {
+            "*": [
+                "./source/*"
+            ]
+        }
+    },
+    "include": [
+        "source/**/*",
+    ]
+}

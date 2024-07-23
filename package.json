@@ -1,0 +1,23 @@
+{
+    "name": "muse",
+    "fullName": "_muse",
+    "version": "24.7.1",
+    "description": "_muse, master userscript extended",
+    "scripts": {
+        "start": "npm run server-build-watch",
+        "build": "webpack",
+        "build-watch": "webpack --watch --progress",
+        "server-build-watch": "webpack serve --progress"
+    },
+    "dependencies": {
+        "render-jsx": "^0.2.4",
+        "solid-toast": "^0.5.0",
+        "ts-loader": "^9.5.1"
+    },
+    "devDependencies": {
+        "glob": "^11.0.0",
+        "webpack-cli": "^5.1.4",
+        "webpack-dev-server": "^5.0.4",
+        "webpack-shell-plugin-next": "^2.3.1"
+    }
+}
