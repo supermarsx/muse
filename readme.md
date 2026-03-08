@@ -313,7 +313,7 @@ handle.unregister();
 
 ### Intercept
 
-Network request interception (fetch and XHR).
+Network request interception (fetch and XHR). Uses a centralized registry pattern: globals are patched only once regardless of how many interceptors are registered, avoiding the stacking/memory leak problem. Response bodies are only deserialized for `text/*` and `application/json` content types.
 
 ```ts
 import { interceptFetch, interceptXHR } from '@muse/userscript';
@@ -324,6 +324,7 @@ const { restore } = interceptFetch({
     // return false to block the request
   },
   onResponse: (res) => {
+    // body is parsed JSON, text string, or null (for binary/unknown content types)
     console.log('Response:', res.url, res.status, res.body);
   },
 });
@@ -332,7 +333,7 @@ const xhrHandle = interceptXHR({
   onRequest: (req) => console.log('XHR:', req.url),
 });
 
-// Restore original behavior
+// Restore original behavior (only unpatches globals when last interceptor is removed)
 restore();
 xhrHandle.restore();
 ```
@@ -342,6 +343,8 @@ xhrHandle.restore();
 | `interceptFetch` | `(options) => InterceptHandle` | Monkey-patches `window.fetch`; return `false` from `onRequest` to block |
 | `interceptXHR` | `(options) => InterceptHandle` | Monkey-patches `XMLHttpRequest` |
 | `Intercept` | `object` | Namespace: `{ interceptFetch, interceptXHR }` |
+
+> **Note:** `onResponse` for fetch fires asynchronously so it does not block the caller. Response `body` is `null` for non-text/non-JSON content types to avoid unnecessary deserialization of binary data.
 
 ---
 
@@ -587,25 +590,35 @@ debouncedSave();
 debouncedSave.cancel();
 
 await sleep(1000);
+
+// Cancellable sleep with AbortSignal
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 500);
+try {
+  await sleep(10000, { signal: controller.signal });
+} catch (err) {
+  console.log('Sleep cancelled early');
+}
 ```
 
 | Export | Signature | Description |
 |--------|-----------|-------------|
 | `debounce` | `(fn, options?) => DebouncedFunction` | Debounces a function (default 250ms delay) |
 | `throttle` | `(fn, options?) => ThrottledFunction` | Throttles a function (default 250ms interval) |
-| `sleep` | `(ms) => Promise<void>` | Promise-based delay |
+| `sleep` | `(ms, options?) => Promise<void>` | Promise-based delay; supports `{ signal: AbortSignal }` to cancel early |
 | `Timing` | `object` | Namespace: `{ debounce, throttle, sleep }` |
 
 **Debounce options:** `{ delay?: number, leading?: boolean }`
 **Throttle options:** `{ interval?: number, trailing?: boolean }`
+**Sleep options:** `{ signal?: AbortSignal }` -- rejects with `AbortError` when aborted
 
-Both returned functions have a `.cancel()` method.
+Both debounce and throttle returned functions have a `.cancel()` method.
 
 ---
 
 ### URL
 
-URL matching and SPA navigation detection.
+URL matching and SPA navigation detection. Uses a centralized history patch: `pushState`/`replaceState` are patched once with a shared callback registry, avoiding the stacking problem when multiple listeners are registered.
 
 ```ts
 import { matchUrl, onUrlChange, getUrlParams } from '@muse/userscript';
@@ -662,9 +675,15 @@ Low-level utilities exported for advanced use cases.
 
 5. **`waitForElement`** -- Now observes `document.documentElement` instead of `document.body` to avoid null reference errors when body is not yet available.
 
-6. **AbortSignal support** -- `waitForElement`, `waitForFunction`, `waitForNestedFunction`, `waitForObject`, `waitForNestedObject`, and `getArrayOfElements` all accept an optional `signal` parameter.
+6. **AbortSignal support** -- `waitForElement`, `waitForFunction`, `waitForNestedFunction`, `waitForObject`, `waitForNestedObject`, `getArrayOfElements`, and `sleep` all accept an optional `signal` parameter.
 
 7. **Function overloads** -- `getElement`, `injectScript`, `injectStyle`, and `applyInlineStyle` now have TypeScript overloads: when `wait: true` is passed, the return type is `Promise<T>`; otherwise it returns synchronously.
+
+8. **Centralized interception** -- `interceptFetch` and `interceptXHR` now use a centralized registry that patches globals only once. Response bodies are only read for text/JSON content types. Multiple interceptors can be registered independently.
+
+9. **Centralized URL change detection** -- `onUrlChange` now patches `pushState`/`replaceState` once via a shared callback Set with a reentrancy guard.
+
+10. **Hotkey validation** -- `parseHotkey` now throws if the shortcut string contains multiple non-modifier keys (e.g., `"Ctrl+A+B"` is rejected).
 
 ### New Modules in v2
 
