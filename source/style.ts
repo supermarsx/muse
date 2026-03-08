@@ -134,17 +134,17 @@ export function removeExternalStyle({ styleName }: RemoveExternalStyleOptions): 
 }
 
 /**
- * Valid hiding method names.
+ * Set of valid hiding method names for O(1) lookup.
  * @internal
  */
-const HIDING_METHODS: readonly HidingMethod[] = ['displayNone', 'opacityZero', 'visibilityHidden'] as const;
+const HIDING_METHOD_SET = new Set<string>(['displayNone', 'opacityZero', 'visibilityHidden']);
 
 /**
  * Type guard for HidingMethod.
  * @internal
  */
 function isHidingMethod(value: string | number): value is HidingMethod {
-  return typeof value === 'string' && (HIDING_METHODS as readonly string[]).includes(value);
+  return typeof value === 'string' && HIDING_METHOD_SET.has(value);
 }
 
 /**
@@ -232,23 +232,14 @@ export function applyHidingMethod({
       return isSingle ? elements[0] : elements;
     }
 
-    // Global (stylesheet injection)
+    // Global (stylesheet injection) — merge all selectors into a single <style> element
+    const text = selectors.map((sel) => `${sel} { ${properties} }`).join('\n');
     if (wait) {
-      const promises = selectors.map((sel) => {
-        const text = `${sel} { ${properties} }`;
-        return injectStyle({ text, wait: true });
-      });
-      if (isSingle) {
-        return promises[0];
-      }
-      return Promise.all(promises);
+      return injectStyle({ text, wait: true });
     }
 
-    const elements = selectors.map((sel) => {
-      const text = `${sel} { ${properties} }`;
-      return injectStyle({ text });
-    });
-    return isSingle ? elements[0] : elements;
+    const element = injectStyle({ text });
+    return isSingle ? element : selectors.map(() => element);
   } catch (error: unknown) {
     throw wrapError('Failed to apply hiding method.', error);
   }
