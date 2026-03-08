@@ -1,0 +1,259 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { interceptFetch, interceptXHR, Intercept } from '../intercept';
+
+describe('interceptFetch', () => {
+  const mockFetch = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ ok: true }), { status: 200 }),
+  );
+  let originalFetch: typeof window.fetch;
+
+  beforeEach(() => {
+    originalFetch = window.fetch;
+    window.fetch = mockFetch;
+    mockFetch.mockClear();
+  });
+
+  afterEach(() => {
+    window.fetch = originalFetch;
+  });
+
+  it('calls onRequest with url and method', async () => {
+    const onRequest = vi.fn();
+    const handle = interceptFetch({ onRequest });
+
+    await window.fetch('https://example.com/api', { method: 'POST' });
+
+    expect(onRequest).toHaveBeenCalledWith({
+      url: 'https://example.com/api',
+      method: 'POST',
+    });
+
+    handle.restore();
+  });
+
+  it('blocks the request when onRequest returns false', async () => {
+    const onRequest = vi.fn().mockReturnValue(false);
+    const handle = interceptFetch({ onRequest });
+
+    const response = await window.fetch('https://example.com/blocked');
+
+    expect(onRequest).toHaveBeenCalled();
+    expect(response.status).toBe(0);
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    handle.restore();
+  });
+
+  it('restore() restores the original fetch', async () => {
+    const onRequest = vi.fn();
+    const handle = interceptFetch({ onRequest });
+
+    // While intercepted, fetch is patched
+    expect(window.fetch).not.toBe(mockFetch);
+
+    handle.restore();
+
+    // After restore, calling fetch should no longer trigger onRequest
+    onRequest.mockClear();
+    await window.fetch('https://example.com/after-restore');
+    expect(onRequest).not.toHaveBeenCalled();
+  });
+
+  it('works without onRequest or onResponse callbacks', async () => {
+    const handle = interceptFetch({});
+
+    await window.fetch('https://example.com/plain');
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    handle.restore();
+  });
+
+  it('calls onResponse with parsed JSON body', async () => {
+    const onResponse = vi.fn();
+    const handle = interceptFetch({ onResponse });
+
+    await window.fetch('https://example.com/api');
+
+    expect(onResponse).toHaveBeenCalledWith({
+      url: 'https://example.com/api',
+      status: 200,
+      body: { ok: true },
+    });
+
+    handle.restore();
+  });
+
+  it('falls back to text body when JSON parse fails', async () => {
+    const textFetch = vi.fn().mockResolvedValue(
+      new Response('plain text', { status: 200, headers: { 'Content-Type': 'text/plain' } }),
+    );
+    window.fetch = textFetch;
+
+    const onResponse = vi.fn();
+    const handle = interceptFetch({ onResponse });
+
+    await window.fetch('https://example.com/text');
+
+    expect(onResponse).toHaveBeenCalledWith({
+      url: 'https://example.com/text',
+      status: 200,
+      body: 'plain text',
+    });
+
+    handle.restore();
+  });
+
+  it('defaults method to GET when not specified', async () => {
+    const onRequest = vi.fn();
+    const handle = interceptFetch({ onRequest });
+
+    await window.fetch('https://example.com/get');
+
+    expect(onRequest).toHaveBeenCalledWith({
+      url: 'https://example.com/get',
+      method: 'GET',
+    });
+
+    handle.restore();
+  });
+
+  it('handles URL object input', async () => {
+    const onRequest = vi.fn();
+    const handle = interceptFetch({ onRequest });
+
+    await window.fetch(new URL('https://example.com/url-obj'));
+
+    expect(onRequest).toHaveBeenCalledWith({
+      url: 'https://example.com/url-obj',
+      method: 'GET',
+    });
+
+    handle.restore();
+  });
+
+  it('handles Request object input', async () => {
+    const onRequest = vi.fn();
+    const handle = interceptFetch({ onRequest });
+
+    await window.fetch(new Request('https://example.com/req-obj'));
+
+    expect(onRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'https://example.com/req-obj' }),
+    );
+
+    handle.restore();
+  });
+});
+
+describe('interceptXHR', () => {
+  let OriginalXHR: typeof window.XMLHttpRequest;
+
+  beforeEach(() => {
+    OriginalXHR = window.XMLHttpRequest;
+  });
+
+  afterEach(() => {
+    window.XMLHttpRequest = OriginalXHR;
+  });
+
+  it('calls onRequest when xhr.open is invoked', () => {
+    const onRequest = vi.fn();
+    const handle = interceptXHR({ onRequest });
+
+    const xhr = new window.XMLHttpRequest();
+    xhr.open('GET', 'https://example.com/data');
+
+    expect(onRequest).toHaveBeenCalledWith({
+      url: 'https://example.com/data',
+      method: 'GET',
+    });
+
+    handle.restore();
+  });
+
+  it('calls onResponse with parsed JSON on load', () => {
+    const onResponse = vi.fn();
+    const handle = interceptXHR({ onResponse });
+
+    const xhr = new window.XMLHttpRequest();
+    xhr.open('GET', 'https://example.com/json');
+
+    // Simulate the load event with JSON response text
+    Object.defineProperty(xhr, 'responseText', { value: '{"data":42}', writable: true });
+    Object.defineProperty(xhr, 'status', { value: 200, writable: true });
+    xhr.dispatchEvent(new Event('load'));
+
+    expect(onResponse).toHaveBeenCalledWith({
+      url: 'https://example.com/json',
+      status: 200,
+      body: { data: 42 },
+    });
+
+    handle.restore();
+  });
+
+  it('calls onResponse with text fallback when JSON parse fails', () => {
+    const onResponse = vi.fn();
+    const handle = interceptXHR({ onResponse });
+
+    const xhr = new window.XMLHttpRequest();
+    xhr.open('POST', 'https://example.com/text');
+
+    Object.defineProperty(xhr, 'responseText', { value: 'not json', writable: true });
+    Object.defineProperty(xhr, 'status', { value: 200, writable: true });
+    xhr.dispatchEvent(new Event('load'));
+
+    expect(onResponse).toHaveBeenCalledWith({
+      url: 'https://example.com/text',
+      status: 200,
+      body: 'not json',
+    });
+
+    handle.restore();
+  });
+
+  it('handles URL object in xhr.open', () => {
+    const onRequest = vi.fn();
+    const handle = interceptXHR({ onRequest });
+
+    const xhr = new window.XMLHttpRequest();
+    xhr.open('GET', new URL('https://example.com/url-obj'));
+
+    expect(onRequest).toHaveBeenCalledWith({
+      url: 'https://example.com/url-obj',
+      method: 'GET',
+    });
+
+    handle.restore();
+  });
+
+  it('restore() restores the original XMLHttpRequest', () => {
+    const handle = interceptXHR({ onRequest: vi.fn() });
+
+    expect(window.XMLHttpRequest).not.toBe(OriginalXHR);
+
+    handle.restore();
+
+    expect(window.XMLHttpRequest).toBe(OriginalXHR);
+  });
+
+  it('works without callbacks', () => {
+    const handle = interceptXHR({});
+
+    const xhr = new window.XMLHttpRequest();
+    expect(() => xhr.open('POST', 'https://example.com/submit')).not.toThrow();
+
+    handle.restore();
+  });
+});
+
+describe('Intercept namespace', () => {
+  it('maps interceptFetch correctly', () => {
+    expect(Intercept.interceptFetch).toBe(interceptFetch);
+  });
+
+  it('maps interceptXHR correctly', () => {
+    expect(Intercept.interceptXHR).toBe(interceptXHR);
+  });
+});
