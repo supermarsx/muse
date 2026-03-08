@@ -74,6 +74,26 @@ describe('darkmode', () => {
       );
     });
 
+    it('rejects additionalFilters with disallowed filter functions', () => {
+      expect(() => invertColors({ additionalFilters: 'expression(alert(1))' })).toThrow(
+        'Failed to invert colors.',
+      );
+    });
+
+    it('accepts safe filter functions like blur and contrast', () => {
+      const result = invertColors({ additionalFilters: 'blur(2px) contrast(0.9)' });
+      expect(result.innerHTML).toContain('blur(2px)');
+      expect(result.innerHTML).toContain('contrast(0.9)');
+    });
+
+    it('rejects invert value less than 0', () => {
+      expect(() => invertColors({ invert: -0.1 })).toThrow('Failed to invert colors.');
+    });
+
+    it('rejects invert value greater than 1', () => {
+      expect(() => invertColors({ invert: 1.5 })).toThrow('Failed to invert colors.');
+    });
+
     it('includes body background in the CSS', () => {
       const result = invertColors();
       expect(result.innerHTML).toContain('body');

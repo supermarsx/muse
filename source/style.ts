@@ -119,6 +119,9 @@ export function injectTextHead({ text = '' }: InjectTextHeadOptions = {}): HTMLS
  */
 export function removeExternalStyle({ styleName }: RemoveExternalStyleOptions): boolean {
   try {
+    if (!styleName) {
+      throw new Error('styleName parameter must not be empty.');
+    }
     const links = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'));
     let removed = false;
     for (const link of links) {

@@ -73,6 +73,18 @@ describe('debounce', () => {
     debounced();
     expect(fn).toHaveBeenCalledTimes(2);
   });
+
+  it('throws when fn is not a function', () => {
+    expect(() => debounce(null as any)).toThrow('debounce: first argument must be a function.');
+  });
+
+  it('throws when delay is negative', () => {
+    expect(() => debounce(() => {}, { delay: -1 })).toThrow('debounce: delay must be a non-negative finite number');
+  });
+
+  it('throws when delay is NaN', () => {
+    expect(() => debounce(() => {}, { delay: NaN })).toThrow('debounce: delay must be a non-negative finite number');
+  });
 });
 
 describe('throttle', () => {
@@ -82,6 +94,28 @@ describe('throttle', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('throws when fn is not a function', () => {
+    expect(() => throttle(null as any)).toThrow('throttle: first argument must be a function.');
+  });
+
+  it('throws when interval is negative', () => {
+    expect(() => throttle(() => {}, { interval: -1 })).toThrow(
+      'throttle: interval must be a non-negative finite number',
+    );
+  });
+
+  it('throws when interval is NaN', () => {
+    expect(() => throttle(() => {}, { interval: NaN })).toThrow(
+      'throttle: interval must be a non-negative finite number',
+    );
+  });
+
+  it('throws when interval is Infinity', () => {
+    expect(() => throttle(() => {}, { interval: Infinity })).toThrow(
+      'throttle: interval must be a non-negative finite number',
+    );
   });
 
   it('calls fn immediately on first call (leading edge)', () => {
@@ -155,6 +189,18 @@ describe('sleep', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('rejects when ms is negative', async () => {
+    await expect(sleep(-1)).rejects.toThrow('sleep: ms must be a non-negative finite number');
+  });
+
+  it('rejects when ms is NaN', async () => {
+    await expect(sleep(NaN)).rejects.toThrow('sleep: ms must be a non-negative finite number');
+  });
+
+  it('rejects when ms is Infinity', async () => {
+    await expect(sleep(Infinity)).rejects.toThrow('sleep: ms must be a non-negative finite number');
   });
 
   it('resolves after the specified ms', async () => {

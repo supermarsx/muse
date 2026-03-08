@@ -19,6 +19,42 @@ const DANGEROUS_FILTER_CHARS = /[{}<>;]/;
 /** @internal Pattern to reject url() references in additionalFilters. */
 const DANGEROUS_FILTER_URL = /url\s*\(/i;
 
+/** @internal Allowlist of safe CSS filter function names. */
+const SAFE_FILTER_FUNCTIONS = new Set([
+  'blur',
+  'brightness',
+  'contrast',
+  'drop-shadow',
+  'grayscale',
+  'hue-rotate',
+  'invert',
+  'opacity',
+  'saturate',
+  'sepia',
+]);
+
+/** @internal Regex to extract function names from a CSS filter string. */
+const FILTER_FUNCTION_NAMES = /([a-z-]+)\s*\(/gi;
+
+/**
+ * Validates that additionalFilters only contains safe CSS filter functions.
+ * @internal
+ */
+function validateAdditionalFilters(filters: string): void {
+  if (!filters) return;
+  if (DANGEROUS_FILTER_CHARS.test(filters) || DANGEROUS_FILTER_URL.test(filters)) {
+    throw new Error('additionalFilters contains invalid characters or url() references.');
+  }
+  // Check that all function calls use allowed filter names
+  let match: RegExpExecArray | null;
+  FILTER_FUNCTION_NAMES.lastIndex = 0;
+  while ((match = FILTER_FUNCTION_NAMES.exec(filters)) !== null) {
+    if (!SAFE_FILTER_FUNCTIONS.has(match[1].toLowerCase())) {
+      throw new Error(`additionalFilters contains disallowed function: "${match[1]}".`);
+    }
+  }
+}
+
 /**
  * Validates that a numeric parameter is a finite number.
  * @internal
@@ -40,9 +76,10 @@ function getInversionCss({
 }: InvertColorsOptions = {}): string {
   validateCssSelector(tags);
   validateFiniteNumber(invert, 'invert');
-  if (DANGEROUS_FILTER_CHARS.test(additionalFilters) || DANGEROUS_FILTER_URL.test(additionalFilters)) {
-    throw new Error('additionalFilters contains invalid characters or url() references.');
+  if (invert < 0 || invert > 1) {
+    throw new Error(`Parameter "invert" must be between 0 and 1, got ${invert}.`);
   }
+  validateAdditionalFilters(additionalFilters);
   return `
     body { background: white; }
     ${tags} { filter: invert(${invert}) ${additionalFilters}; }
@@ -150,7 +187,7 @@ function getElementDarkmodeCss(selector: string, method: DarkmodeMethod): string
         ${selector} img { filter: invert(1) hue-rotate(180deg) !important; }
       `;
     default:
-      return '';
+      throw new Error(`Unknown darkmode method: ${String(method)}.`);
   }
 }
 

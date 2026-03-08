@@ -117,8 +117,8 @@ function ensureFetchPatched(): void {
           if (interceptor.onResponse) {
             try {
               interceptor.onResponse(info);
-            } catch {
-              // Don't let one interceptor break others
+            } catch (error: unknown) {
+              console.warn('[_muse] Fetch response interceptor error:', error);
             }
           }
         }
@@ -198,8 +198,8 @@ function ensureXHRPatched(): void {
         if (interceptor.onRequest) {
           try {
             interceptor.onRequest({ url: capturedUrl, method: capturedMethod });
-          } catch {
-            // Don't let one interceptor break others
+          } catch (error: unknown) {
+            console.warn('[_muse] XHR request interceptor error:', error);
           }
         }
       }
@@ -236,8 +236,8 @@ function ensureXHRPatched(): void {
         if (interceptor.onResponse) {
           try {
             interceptor.onResponse(info);
-          } catch {
-            // Don't let one interceptor break others
+          } catch (error: unknown) {
+            console.warn('[_muse] XHR response interceptor error:', error);
           }
         }
       }

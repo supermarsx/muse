@@ -49,7 +49,17 @@ export function pollUntil<T>(
   const timeout = options.timeout ?? DEFAULT_TIMEOUT;
   const signal = options.signal;
 
+  // Fix #6: Bounds validation for interval and timeout
+  if (!Number.isFinite(interval) || interval <= 0) {
+    return Promise.reject(new Error(`Polling interval must be a positive finite number, got ${interval}.`));
+  }
+  if (!Number.isFinite(timeout) || timeout <= 0) {
+    return Promise.reject(new Error(`Polling timeout must be a positive finite number, got ${timeout}.`));
+  }
+
   return new Promise<T>((resolve, reject) => {
+    // Fix #7: Settled flag to prevent double-settle
+    let settled = false;
     let lastError: unknown;
     let pollTimer: ReturnType<typeof setTimeout>;
 
@@ -66,6 +76,8 @@ export function pollUntil<T>(
     };
 
     const onAbort = (): void => {
+      if (settled) return;
+      settled = true;
       cleanup();
       reject(new Error('Polling aborted.', { cause: signal?.reason }));
     };
@@ -74,14 +86,18 @@ export function pollUntil<T>(
 
     // Assign timeout timer BEFORE first check to ensure it's always initialized
     const timeoutTimer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
       cleanup();
       reject(new Error(timeoutMessage, { cause: lastError }));
     }, timeout);
 
     const check = (): void => {
+      if (settled) return;
       try {
         const result = condition();
         if (result != null) {
+          settled = true;
           cleanup();
           resolve(result);
           return;
@@ -90,7 +106,9 @@ export function pollUntil<T>(
         lastError = error;
       }
       // Schedule next check — chained setTimeout prevents stacking
-      pollTimer = setTimeout(check, interval);
+      if (!settled) {
+        pollTimer = setTimeout(check, interval);
+      }
     };
 
     // Immediate first check — avoid unnecessary delay when condition is already met

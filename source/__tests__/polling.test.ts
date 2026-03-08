@@ -115,4 +115,46 @@ describe('pollUntil', () => {
     const result = await promise;
     expect(result).toBe('found');
   });
+
+  it('rejects when interval is negative', async () => {
+    await expect(pollUntil(() => null, { interval: -1, timeout: 1000 }, 'fail')).rejects.toThrow(
+      'Polling interval must be a positive finite number',
+    );
+  });
+
+  it('rejects when interval is NaN', async () => {
+    await expect(pollUntil(() => null, { interval: NaN, timeout: 1000 }, 'fail')).rejects.toThrow(
+      'Polling interval must be a positive finite number',
+    );
+  });
+
+  it('rejects when interval is Infinity', async () => {
+    await expect(pollUntil(() => null, { interval: Infinity, timeout: 1000 }, 'fail')).rejects.toThrow(
+      'Polling interval must be a positive finite number',
+    );
+  });
+
+  it('rejects when timeout is negative', async () => {
+    await expect(pollUntil(() => null, { interval: 50, timeout: -1 }, 'fail')).rejects.toThrow(
+      'Polling timeout must be a positive finite number',
+    );
+  });
+
+  it('rejects when timeout is NaN', async () => {
+    await expect(pollUntil(() => null, { interval: 50, timeout: NaN }, 'fail')).rejects.toThrow(
+      'Polling timeout must be a positive finite number',
+    );
+  });
+
+  it('rejects when timeout is Infinity', async () => {
+    await expect(pollUntil(() => null, { interval: 50, timeout: Infinity }, 'fail')).rejects.toThrow(
+      'Polling timeout must be a positive finite number',
+    );
+  });
+
+  it('rejects when interval is zero', async () => {
+    await expect(pollUntil(() => null, { interval: 0, timeout: 1000 }, 'fail')).rejects.toThrow(
+      'Polling interval must be a positive finite number',
+    );
+  });
 });

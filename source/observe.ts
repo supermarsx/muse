@@ -145,6 +145,14 @@ export function waitForChild(
     observer.observe(parentEl, { childList: true, subtree: true });
     signal?.addEventListener('abort', onAbort, { once: true });
 
+    // Double-check after observe to close the race window between initial check and observe
+    const afterObserve = parentEl.querySelector(selector);
+    if (afterObserve) {
+      cleanup();
+      resolve(afterObserve);
+      return;
+    }
+
     const timer = setTimeout(() => {
       cleanup();
       reject(

@@ -11,6 +11,9 @@ export interface OnReadyOptions {
   state?: DocumentReadyState | undefined;
 }
 
+/** Valid ready states for runtime validation. */
+const VALID_READY_STATES = new Set<string>(['loading', 'interactive', 'complete']);
+
 /**
  * Returns a Promise that resolves when the document reaches the specified
  * ready state (or immediately if it already has).
@@ -31,6 +34,10 @@ export interface OnReadyOptions {
  */
 export function onReady(options: OnReadyOptions = {}): Promise<void> {
   const target = options.state ?? 'interactive';
+
+  if (!VALID_READY_STATES.has(target)) {
+    return Promise.reject(new Error(`onReady: invalid state "${target}". Must be "loading", "interactive", or "complete".`));
+  }
 
   return new Promise<void>((resolve) => {
     if (isStateReached(document.readyState, target)) {
@@ -64,6 +71,10 @@ export function onReady(options: OnReadyOptions = {}): Promise<void> {
  */
 export function whenReady(callback: () => void, options: OnReadyOptions = {}): void {
   const target = options.state ?? 'interactive';
+
+  if (!VALID_READY_STATES.has(target)) {
+    throw new Error(`whenReady: invalid state "${target}". Must be "loading", "interactive", or "complete".`);
+  }
 
   if (isStateReached(document.readyState, target)) {
     callback();

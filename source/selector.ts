@@ -114,6 +114,14 @@ export function waitForElement({ selector, timeout = 15000, signal }: WaitForEle
     observer.observe(root, { childList: true, subtree: true });
     signal?.addEventListener('abort', onAbort, { once: true });
 
+    // Double-check after observe to close the race window between initial check and observe
+    const afterObserve = document.querySelector(selector);
+    if (afterObserve) {
+      cleanup();
+      resolve(afterObserve);
+      return;
+    }
+
     const timer = setTimeout(() => {
       cleanup();
       reject(wrapError('Failed to wait for element.', new Error(`Timed out waiting for element: ${selector}`)));

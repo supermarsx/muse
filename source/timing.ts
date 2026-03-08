@@ -45,7 +45,13 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
   fn: T,
   options: DebounceOptions = {},
 ): DebouncedFunction<T> {
+  if (typeof fn !== 'function') {
+    throw new Error('debounce: first argument must be a function.');
+  }
   const delay = options.delay ?? 250;
+  if (!Number.isFinite(delay) || delay < 0) {
+    throw new Error(`debounce: delay must be a non-negative finite number, got ${delay}.`);
+  }
   const leading = options.leading ?? false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let hasLeadingCall = false;
@@ -123,7 +129,13 @@ export function throttle<T extends (...args: unknown[]) => unknown>(
   fn: T,
   options: ThrottleOptions = {},
 ): ThrottledFunction<T> {
+  if (typeof fn !== 'function') {
+    throw new Error('throttle: first argument must be a function.');
+  }
   const interval = options.interval ?? 250;
+  if (!Number.isFinite(interval) || interval < 0) {
+    throw new Error(`throttle: interval must be a non-negative finite number, got ${interval}.`);
+  }
   const trailing = options.trailing ?? true;
   let lastCall = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -198,6 +210,9 @@ export interface SleepOptions {
  * ```
  */
 export function sleep(ms: number, options?: SleepOptions): Promise<void> {
+  if (!Number.isFinite(ms) || ms < 0) {
+    return Promise.reject(new Error(`sleep: ms must be a non-negative finite number, got ${ms}.`));
+  }
   const { signal } = options ?? {};
 
   if (signal?.aborted) {

@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { injectScript, injectScriptArray, injectScriptUrls, removeExternalScript, removeExternalScripts, Script } from '../script';
+import {
+  injectScript,
+  injectScriptArray,
+  injectScriptUrls,
+  removeExternalScript,
+  removeExternalScripts,
+  Script,
+} from '../script';
 
 describe('script', () => {
   beforeEach(() => {
@@ -43,6 +50,14 @@ describe('script', () => {
       expect(() => injectScript({ text: 'x', location: 'footer' as any })).toThrow('Failed to inject script.');
     });
 
+    it('throws when URL uses javascript: scheme', () => {
+      expect(() => injectScript({ url: 'javascript:alert(1)' })).toThrow('Failed to inject script.');
+    });
+
+    it('throws when URL uses data: scheme', () => {
+      expect(() => injectScript({ url: 'data:text/html,<h1>evil</h1>' })).toThrow('Failed to inject script.');
+    });
+
     it('returns a Promise when wait is true', () => {
       const result = injectScript({ text: 'var z = 1;', wait: true });
       expect(result).toBeInstanceOf(Promise);
@@ -63,6 +78,10 @@ describe('script', () => {
     it('returns false when no scripts match', () => {
       const removed = removeExternalScript('nonexistent');
       expect(removed).toBe(false);
+    });
+
+    it('throws when scriptName is empty', () => {
+      expect(() => removeExternalScript('')).toThrow('Failed to remove script "".');
     });
   });
 
@@ -87,10 +106,7 @@ describe('script', () => {
 
   describe('injectScriptArray', () => {
     it('returns a Promise that calls injectScript for each item', () => {
-      const result = injectScriptArray([
-        { text: 'var a = 1;' },
-        { text: 'var b = 2;' },
-      ]);
+      const result = injectScriptArray([{ text: 'var a = 1;' }, { text: 'var b = 2;' }]);
       // injectScriptArray returns a Promise (it calls injectScript with wait: true)
       expect(result).toBeInstanceOf(Promise);
       // Suppress unhandled rejection from happy-dom failing to load resources

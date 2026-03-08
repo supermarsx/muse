@@ -85,6 +85,10 @@ describe('style', () => {
       const removed = removeExternalStyle({ styleName: 'nonexistent' });
       expect(removed).toBe(false);
     });
+
+    it('throws when styleName is empty', () => {
+      expect(() => removeExternalStyle({ styleName: '' })).toThrow('Failed to remove stylesheet "".');
+    });
   });
 
   describe('applyInlineStyle', () => {
@@ -152,10 +156,7 @@ describe('style', () => {
 
   describe('injectStyleArray', () => {
     it('returns a Promise that calls injectStyle for each item', () => {
-      const result = injectStyleArray([
-        { text: '.a { color: red; }' },
-        { text: '.b { color: blue; }' },
-      ]);
+      const result = injectStyleArray([{ text: '.a { color: red; }' }, { text: '.b { color: blue; }' }]);
       // injectStyleArray returns a Promise (it calls injectStyle with wait: true)
       expect(result).toBeInstanceOf(Promise);
       // Suppress unhandled rejection from happy-dom failing to load resources
@@ -193,6 +194,30 @@ describe('style', () => {
         applyHidingMethod({
           selectorOrArrayOfSelectors: '.x',
           method: 'bogus' as any,
+        }),
+      ).toThrow('Failed to apply hiding method.');
+    });
+
+    it('rejects selectors with angle brackets', () => {
+      expect(() =>
+        applyHidingMethod({
+          selectorOrArrayOfSelectors: '<div>',
+        }),
+      ).toThrow('Failed to apply hiding method.');
+    });
+
+    it('rejects selectors with backslash', () => {
+      expect(() =>
+        applyHidingMethod({
+          selectorOrArrayOfSelectors: '.foo\\',
+        }),
+      ).toThrow('Failed to apply hiding method.');
+    });
+
+    it('rejects selectors with CSS comment opener', () => {
+      expect(() =>
+        applyHidingMethod({
+          selectorOrArrayOfSelectors: '.foo /* comment',
         }),
       ).toThrow('Failed to apply hiding method.');
     });

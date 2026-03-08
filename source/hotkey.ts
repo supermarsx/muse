@@ -67,7 +67,11 @@ function ensureHotkeyListener(): void {
         if (binding.preventDefault !== false) {
           event.preventDefault();
         }
-        binding.handler(event);
+        try {
+          binding.handler(event);
+        } catch (error: unknown) {
+          console.warn('[_muse] Hotkey handler error:', error);
+        }
       }
     }
   };

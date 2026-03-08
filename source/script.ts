@@ -88,6 +88,9 @@ export function injectScriptUrls(urls: string[]): Promise<Array<HTMLScriptElemen
  */
 export function removeExternalScript(scriptName: string): boolean {
   try {
+    if (!scriptName) {
+      throw new Error('scriptName parameter must not be empty.');
+    }
     const scripts = Array.from(getAllScripts());
     let removed = false;
     for (const script of scripts) {

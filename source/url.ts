@@ -106,8 +106,9 @@ function checkUrlChange(): void {
       for (const cb of urlChangeCallbacks) {
         try {
           cb(current);
-        } catch {
-          // Don't let one callback break others
+        } catch (error: unknown) {
+          // Don't let one callback break others — warn instead of silently swallowing
+          console.warn('[_muse] onUrlChange callback error:', error);
         }
       }
     }

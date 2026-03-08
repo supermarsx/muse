@@ -13,6 +13,12 @@ describe('onReady', () => {
     await expect(onReady({ state: 'interactive' })).resolves.toBeUndefined();
   });
 
+  it('rejects when state is invalid', async () => {
+    await expect(onReady({ state: 'bogus' as any })).rejects.toThrow(
+      'onReady: invalid state "bogus". Must be "loading", "interactive", or "complete".',
+    );
+  });
+
   describe('when readyState is "loading"', () => {
     let originalDescriptor: PropertyDescriptor | undefined;
 
@@ -86,6 +92,12 @@ describe('whenReady', () => {
     const callback = vi.fn();
     whenReady(callback, { state: 'complete' });
     expect(callback).toHaveBeenCalledOnce();
+  });
+
+  it('throws when state is invalid', () => {
+    expect(() => whenReady(() => {}, { state: 'bogus' as any })).toThrow(
+      'whenReady: invalid state "bogus". Must be "loading", "interactive", or "complete".',
+    );
   });
 
   describe('when readyState is "loading"', () => {

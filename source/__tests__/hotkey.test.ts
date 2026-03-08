@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  parseHotkey,
-  registerHotkey,
-  registerHotkeys,
-  Hotkey,
-} from '../hotkey';
+import { parseHotkey, registerHotkey, registerHotkeys, Hotkey } from '../hotkey';
 
 describe('hotkey', () => {
   describe('parseHotkey', () => {
@@ -60,9 +55,7 @@ describe('hotkey', () => {
 
     it('throws when no key is found in the shortcut', () => {
       const handler = vi.fn();
-      expect(() => parseHotkey('Ctrl+Shift', handler)).toThrow(
-        'no key found in shortcut',
-      );
+      expect(() => parseHotkey('Ctrl+Shift', handler)).toThrow('no key found in shortcut');
     });
   });
 
@@ -77,20 +70,37 @@ describe('hotkey', () => {
       const handler = vi.fn();
       handle = registerHotkey({ key: 's', modifiers: { ctrl: true }, handler });
 
-      document.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 's', ctrlKey: true }),
-      );
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
 
       expect(handler).toHaveBeenCalledOnce();
+    });
+
+    it('catches handler errors and logs them without breaking other handlers', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const errorHandler = vi.fn(() => {
+        throw new Error('handler boom');
+      });
+      const goodHandler = vi.fn();
+
+      const handle1 = registerHotkey({ key: 'x', handler: errorHandler });
+      const handle2 = registerHotkey({ key: 'x', handler: goodHandler });
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'x' }));
+
+      expect(errorHandler).toHaveBeenCalledOnce();
+      expect(goodHandler).toHaveBeenCalledOnce();
+      expect(warnSpy).toHaveBeenCalledWith('[_muse] Hotkey handler error:', expect.any(Error));
+
+      handle1.unregister();
+      handle2.unregister();
+      warnSpy.mockRestore();
     });
 
     it('does not fire handler on non-matching key', () => {
       const handler = vi.fn();
       handle = registerHotkey({ key: 's', modifiers: { ctrl: true }, handler });
 
-      document.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'a', ctrlKey: true }),
-      );
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true }));
 
       expect(handler).not.toHaveBeenCalled();
     });
@@ -104,9 +114,7 @@ describe('hotkey', () => {
       });
 
       // Missing shift
-      document.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 's', ctrlKey: true }),
-      );
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
       expect(handler).not.toHaveBeenCalled();
 
       // All modifiers present
@@ -175,15 +183,11 @@ describe('hotkey', () => {
         { key: 'Escape', handler: closeHandler },
       ]);
 
-      document.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 's', ctrlKey: true }),
-      );
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
       expect(saveHandler).toHaveBeenCalledOnce();
       expect(closeHandler).not.toHaveBeenCalled();
 
-      document.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Escape' }),
-      );
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       expect(closeHandler).toHaveBeenCalledOnce();
     });
 
@@ -221,9 +225,7 @@ describe('hotkey', () => {
 
       handle.unregister();
 
-      document.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 's', ctrlKey: true }),
-      );
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
 
       expect(handler).not.toHaveBeenCalled();
     });
