@@ -110,9 +110,22 @@ export function removeExternalScript(scriptName: string): boolean {
  */
 export function removeExternalScripts(scriptNames: string[]): RemovalResult[] {
   try {
+    const scripts = getAllScripts();
+    const removedSet = new Set<string>();
+
+    scripts.forEach((script) => {
+      for (const name of scriptNames) {
+        if (!removedSet.has(name) && script.src.includes(name)) {
+          script.parentNode?.removeChild(script);
+          removedSet.add(name);
+          break;
+        }
+      }
+    });
+
     return scriptNames.map((name) => ({
       name,
-      removed: removeExternalScript(name),
+      removed: removedSet.has(name),
     }));
   } catch (error: unknown) {
     throw wrapError('Failed to bulk remove scripts.', error);
