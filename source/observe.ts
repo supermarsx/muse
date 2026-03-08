@@ -122,11 +122,23 @@ export function waitForChild(
       reject(new Error('waitForChild aborted.', { cause: signal?.reason }));
     };
 
-    const observer = new MutationObserver(() => {
-      const el = parentEl.querySelector(selector);
-      if (el) {
-        cleanup();
-        resolve(el);
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node instanceof Element) {
+            if (node.matches(selector)) {
+              cleanup();
+              resolve(node);
+              return;
+            }
+            const nested = node.querySelector(selector);
+            if (nested) {
+              cleanup();
+              resolve(nested);
+              return;
+            }
+          }
+        }
       }
     });
 

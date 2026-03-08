@@ -83,11 +83,23 @@ export function waitForElement({ selector, timeout = 15000, signal }: WaitForEle
       reject(wrapError('Failed to wait for element.', new Error('Wait aborted.', { cause: signal?.reason })));
     };
 
-    const observer = new MutationObserver(() => {
-      const element = document.querySelector(selector);
-      if (element) {
-        cleanup();
-        resolve(element);
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node instanceof Element) {
+            if (node.matches(selector)) {
+              cleanup();
+              resolve(node);
+              return;
+            }
+            const nested = node.querySelector(selector);
+            if (nested) {
+              cleanup();
+              resolve(nested);
+              return;
+            }
+          }
+        }
       }
     });
 
