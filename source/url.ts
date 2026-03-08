@@ -90,6 +90,10 @@ let originalPushState: typeof history.pushState;
 let originalReplaceState: typeof history.replaceState;
 let lastUrl = '';
 let checking = false;
+let popstateListenerRef: (() => void) | null = null;
+
+/** @internal Maximum number of registered URL change callbacks. */
+const MAX_URL_CALLBACKS = 200;
 
 /** @internal Shared check function for all URL change listeners. */
 function checkUrlChange(): void {
@@ -131,7 +135,16 @@ function ensureHistoryPatched(): void {
     checkUrlChange();
   };
 
-  window.addEventListener('popstate', checkUrlChange, { passive: true });
+  popstateListenerRef = checkUrlChange;
+  window.addEventListener('popstate', popstateListenerRef, { passive: true });
+}
+
+/** @internal Removes the popstate listener when no callbacks remain. */
+function maybeRemovePopstateListener(): void {
+  if (urlChangeCallbacks.size === 0 && popstateListenerRef) {
+    window.removeEventListener('popstate', popstateListenerRef);
+    // Note: we don't un-patch history methods — they become transparent passthroughs
+  }
 }
 
 /**
@@ -160,11 +173,15 @@ function ensureHistoryPatched(): void {
  */
 export function onUrlChange(callback: (url: string) => void): NavigationHandle {
   ensureHistoryPatched();
+  if (urlChangeCallbacks.size >= MAX_URL_CALLBACKS) {
+    throw new Error(`Maximum number of URL change callbacks (${MAX_URL_CALLBACKS}) reached.`);
+  }
   urlChangeCallbacks.add(callback);
 
   return {
     stop: () => {
       urlChangeCallbacks.delete(callback);
+      maybeRemovePopstateListener();
     },
   };
 }

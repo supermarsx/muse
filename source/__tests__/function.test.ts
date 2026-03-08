@@ -151,6 +151,15 @@ describe('function', () => {
       const results = getFunctionList();
       expect(results).toEqual([]);
     });
+
+    it('matches function names containing $ (e.g. jQuery)', () => {
+      document.body.innerHTML = `<script>$.ajax('/api');</script>`;
+
+      const results = getFunctionList();
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      const functionNames = results.map((match) => match[2]);
+      expect(functionNames).toContain('$.ajax');
+    });
   });
 
   describe('getOriginalParameters', () => {

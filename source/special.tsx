@@ -25,6 +25,9 @@ let toastInitialized = false;
  */
 export function initToast({ position = 'bottom-left', gutter = 8 }: ToastInitOptions): void {
   if (toastInitialized) return;
+  if (!document.body) {
+    throw new Error('Cannot initialize toast: document.body is not available.');
+  }
   toastInitialized = true;
   const renderer = new CommonDOMRenderer();
   return renderer
@@ -84,6 +87,9 @@ export function showToast({
   }
 }
 
+/** @internal Guard against double-initialization of the go-to buttons. */
+let buttonsInitialized = false;
+
 /**
  * Adds "go to top" and "go to bottom" navigation buttons to the page.
  *
@@ -91,6 +97,14 @@ export function showToast({
  */
 export function addGoToTopAndBottomButtons(): HTMLDivElement {
   try {
+    if (buttonsInitialized) {
+      throw new Error('Go-to-top and go-to-bottom buttons are already initialized.');
+    }
+    if (!document.body) {
+      throw new Error('Cannot add buttons: document.body is not available.');
+    }
+    buttonsInitialized = true;
+
     const div = document.createElement('div');
 
     const topBtn = document.createElement('button');
@@ -98,8 +112,7 @@ export function addGoToTopAndBottomButtons(): HTMLDivElement {
     topBtn.title = 'Go to top';
     topBtn.textContent = '\u2191'; // ↑
     topBtn.addEventListener('click', () => {
-      document.body.scrollTop = 0;
-      document.documentElement.scrollTop = 0;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
     const bottomBtn = document.createElement('button');
@@ -107,8 +120,7 @@ export function addGoToTopAndBottomButtons(): HTMLDivElement {
     bottomBtn.title = 'Go to bottom';
     bottomBtn.textContent = '\u2193'; // ↓
     bottomBtn.addEventListener('click', () => {
-      document.body.scrollTop = document.body.scrollHeight;
-      document.documentElement.scrollTop = document.body.scrollHeight;
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     });
 
     div.appendChild(topBtn);

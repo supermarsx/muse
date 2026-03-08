@@ -186,6 +186,28 @@ describe('hotkey', () => {
       );
       expect(closeHandler).toHaveBeenCalledOnce();
     });
+
+    it('throws when max hotkey bindings would be exceeded', () => {
+      // Register close to the max (500)
+      const handles: ReturnType<typeof registerHotkeys>[] = [];
+      const bigBatch: { key: string; handler: () => void }[] = [];
+      for (let i = 0; i < 499; i++) {
+        bigBatch.push({ key: `k${i}`, handler: () => {} });
+      }
+      const h = registerHotkeys(bigBatch);
+      handles.push(h);
+
+      // This should throw because 499 + 2 > 500
+      expect(() =>
+        registerHotkeys([
+          { key: 'a', handler: () => {} },
+          { key: 'b', handler: () => {} },
+        ]),
+      ).toThrow('Maximum number of hotkey bindings (500) would be exceeded.');
+
+      // Cleanup
+      for (const hh of handles) hh.unregister();
+    });
   });
 
   describe('unregister', () => {

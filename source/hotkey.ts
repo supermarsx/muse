@@ -50,13 +50,17 @@ interface NormalizedBinding extends HotkeyBinding {
 // --- Centralized hotkey listener registry ---
 const hotkeyBindings = new Set<NormalizedBinding>();
 let hotkeyListenerAttached = false;
+let hotkeyListenerRef: ((event: KeyboardEvent) => void) | null = null;
+
+/** @internal Maximum number of registered hotkey bindings. */
+const MAX_HOTKEY_BINDINGS = 500;
 
 /** @internal Attaches a single shared keydown listener. */
 function ensureHotkeyListener(): void {
   if (hotkeyListenerAttached) return;
   hotkeyListenerAttached = true;
 
-  document.addEventListener('keydown', (event: KeyboardEvent) => {
+  hotkeyListenerRef = (event: KeyboardEvent) => {
     const eventKey = event.key.toLowerCase();
     for (const binding of hotkeyBindings) {
       if (eventKey === binding._lowerKey && matchesModifiers(event, binding)) {
@@ -66,7 +70,18 @@ function ensureHotkeyListener(): void {
         binding.handler(event);
       }
     }
-  });
+  };
+
+  document.addEventListener('keydown', hotkeyListenerRef);
+}
+
+/** @internal Removes the keydown listener when no bindings remain. */
+function maybeRemoveHotkeyListener(): void {
+  if (hotkeyBindings.size === 0 && hotkeyListenerAttached && hotkeyListenerRef) {
+    document.removeEventListener('keydown', hotkeyListenerRef);
+    hotkeyListenerAttached = false;
+    hotkeyListenerRef = null;
+  }
 }
 
 /**
@@ -105,6 +120,10 @@ export function registerHotkeys(bindings: HotkeyBinding[]): HotkeyHandle {
     _lowerKey: b.key.toLowerCase(),
   }));
 
+  if (hotkeyBindings.size + normalizedBindings.length > MAX_HOTKEY_BINDINGS) {
+    throw new Error(`Maximum number of hotkey bindings (${MAX_HOTKEY_BINDINGS}) would be exceeded.`);
+  }
+
   for (const nb of normalizedBindings) {
     hotkeyBindings.add(nb);
   }
@@ -114,6 +133,7 @@ export function registerHotkeys(bindings: HotkeyBinding[]): HotkeyHandle {
       for (const nb of normalizedBindings) {
         hotkeyBindings.delete(nb);
       }
+      maybeRemoveHotkeyListener();
     },
   };
 }

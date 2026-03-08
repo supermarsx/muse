@@ -33,7 +33,9 @@ export function logResult({ errorObject, useLibraryName = false }: ResultLogOpti
 
     const stackLines = new Error().stack?.split('\n');
     const callerLine = stackLines && stackLines.length > 2 ? stackLines[2].trim() : 'unknown';
-    const callerFunction = callerLine.split(' ')[1] ?? 'anonymous';
+    // Extract only the function name from the stack frame (e.g. "at functionName (file:line:col)")
+    const callerMatch = callerLine.match(/at\s+([^\s(]+)/);
+    const callerFunction = callerMatch ? callerMatch[1].replace(/^.*\./, '') : 'anonymous';
 
     const message = `${prefix}${callerFunction}: ${status}`;
     window.console.log(message);

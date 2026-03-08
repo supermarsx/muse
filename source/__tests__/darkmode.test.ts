@@ -50,6 +50,30 @@ describe('darkmode', () => {
       expect(result.innerHTML).toContain('contrast(0.9)');
     });
 
+    it('rejects additionalFilters containing semicolons', () => {
+      expect(() => invertColors({ additionalFilters: 'contrast(0.9); color: red' })).toThrow(
+        'Failed to invert colors.',
+      );
+    });
+
+    it('rejects additionalFilters containing curly braces', () => {
+      expect(() => invertColors({ additionalFilters: '} .evil { color: red' })).toThrow(
+        'Failed to invert colors.',
+      );
+    });
+
+    it('rejects additionalFilters containing url() references', () => {
+      expect(() => invertColors({ additionalFilters: 'url(https://evil.com/payload)' })).toThrow(
+        'Failed to invert colors.',
+      );
+    });
+
+    it('rejects additionalFilters with url( with spaces', () => {
+      expect(() => invertColors({ additionalFilters: 'url  (evil)' })).toThrow(
+        'Failed to invert colors.',
+      );
+    });
+
     it('includes body background in the CSS', () => {
       const result = invertColors();
       expect(result.innerHTML).toContain('body');
@@ -108,25 +132,23 @@ describe('darkmode', () => {
     it('injects a style element for a single selector', () => {
       const result = elementDarkmodeMethod1({ selectorOrArrayOfSelectors: '.card' });
       expect(result).toBeInstanceOf(HTMLStyleElement);
-      expect((result as HTMLStyleElement).innerHTML).toContain('.card');
-      expect((result as HTMLStyleElement).innerHTML).toContain('filter: invert(1) hue-rotate(180deg)');
+      expect(result.innerHTML).toContain('.card');
+      expect(result.innerHTML).toContain('filter: invert(1) hue-rotate(180deg)');
     });
 
-    it('returns an array of style elements for an array of selectors', () => {
+    it('returns a single style element even for an array of selectors', () => {
       const result = elementDarkmodeMethod1({
         selectorOrArrayOfSelectors: ['.card', '.panel'],
-      }) as HTMLStyleElement[];
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBe(2);
-      expect(result[0]).toBeInstanceOf(HTMLStyleElement);
-      expect(result[0].innerHTML).toContain('.card');
-      expect(result[1].innerHTML).toContain('.panel');
+      });
+      expect(result).toBeInstanceOf(HTMLStyleElement);
+      expect(result.innerHTML).toContain('.card');
+      expect(result.innerHTML).toContain('.panel');
     });
 
     it('includes forced color and background rules', () => {
       const result = elementDarkmodeMethod1({ selectorOrArrayOfSelectors: '.widget' });
-      expect((result as HTMLStyleElement).innerHTML).toContain('color: #000000 !important');
-      expect((result as HTMLStyleElement).innerHTML).toContain('background: #ffffff !important');
+      expect(result.innerHTML).toContain('color: #000000 !important');
+      expect(result.innerHTML).toContain('background: #ffffff !important');
     });
   });
 
@@ -134,14 +156,14 @@ describe('darkmode', () => {
     it('injects a style element for a single selector', () => {
       const result = elementDarkmodeMethod2({ selectorOrArrayOfSelectors: '.sidebar' });
       expect(result).toBeInstanceOf(HTMLStyleElement);
-      expect((result as HTMLStyleElement).innerHTML).toContain('.sidebar');
-      expect((result as HTMLStyleElement).innerHTML).toContain('color: #000000 !important');
-      expect((result as HTMLStyleElement).innerHTML).toContain('background: #ffffff !important');
+      expect(result.innerHTML).toContain('.sidebar');
+      expect(result.innerHTML).toContain('color: #000000 !important');
+      expect(result.innerHTML).toContain('background: #ffffff !important');
     });
 
     it('does not include filter inversion', () => {
       const result = elementDarkmodeMethod2({ selectorOrArrayOfSelectors: '.sidebar' });
-      expect((result as HTMLStyleElement).innerHTML).not.toContain('filter:');
+      expect(result.innerHTML).not.toContain('filter:');
     });
   });
 
@@ -149,8 +171,8 @@ describe('darkmode', () => {
     it('injects a style element targeting images within the selector', () => {
       const result = elementDarkmodeMethod3({ selectorOrArrayOfSelectors: '.content' });
       expect(result).toBeInstanceOf(HTMLStyleElement);
-      expect((result as HTMLStyleElement).innerHTML).toContain('.content img');
-      expect((result as HTMLStyleElement).innerHTML).toContain('filter: invert(1) hue-rotate(180deg)');
+      expect(result.innerHTML).toContain('.content img');
+      expect(result.innerHTML).toContain('filter: invert(1) hue-rotate(180deg)');
     });
   });
 

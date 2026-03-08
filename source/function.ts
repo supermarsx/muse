@@ -80,7 +80,7 @@ export function waitForNestedFunction({
 }
 
 /** @internal Regex to match function call patterns in script contents. */
-const FUNCTION_CALL_REGEX = /(([\w.]+)\(([^)]*)\);*)/g;
+const FUNCTION_CALL_REGEX = /(([\w$.]+)\(([^)]*)\);*)/g;
 
 /** @internal Maximum script content length to scan (100 KB). */
 const MAX_SCRIPT_SCAN_LENGTH = 100_000;

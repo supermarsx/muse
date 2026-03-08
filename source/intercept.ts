@@ -55,6 +55,9 @@ const fetchInterceptors = new Set<InterceptOptions>();
 let fetchPatched = false;
 let originalFetch: typeof window.fetch;
 
+/** @internal Maximum number of registered fetch interceptors. */
+const MAX_FETCH_INTERCEPTORS = 100;
+
 /** @internal Patches window.fetch exactly once. */
 function ensureFetchPatched(): void {
   if (fetchPatched) return;
@@ -63,14 +66,18 @@ function ensureFetchPatched(): void {
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    const method = init?.method ?? 'GET';
+    const method =
+      init?.method ?? (input instanceof Request ? input.method : 'GET');
+
+    // Snapshot the Set to avoid mutation during iteration
+    const snapshot = [...fetchInterceptors];
 
     // Fire onRequest callbacks; if any returns false, block the request
-    for (const interceptor of fetchInterceptors) {
+    for (const interceptor of snapshot) {
       if (interceptor.onRequest) {
         const result = interceptor.onRequest({ url, method });
         if (result === false) {
-          return new Response(null, { status: 0, statusText: 'Blocked by interceptor' });
+          return new Response(null, { status: 403, statusText: 'Blocked by interceptor' });
         }
       }
     }
@@ -79,7 +86,7 @@ function ensureFetchPatched(): void {
 
     // Fire onResponse callbacks asynchronously to avoid blocking the caller
     let hasResponseInterceptor = false;
-    for (const interceptor of fetchInterceptors) {
+    for (const interceptor of snapshot) {
       if (interceptor.onResponse) {
         hasResponseInterceptor = true;
         break;
@@ -104,7 +111,9 @@ function ensureFetchPatched(): void {
           }
         }
         const info: InterceptedResponse = { url, status: response.status, body };
-        for (const interceptor of fetchInterceptors) {
+        // Re-snapshot for response iteration (interceptors may have changed)
+        const responseSnapshot = [...fetchInterceptors];
+        for (const interceptor of responseSnapshot) {
           if (interceptor.onResponse) {
             try {
               interceptor.onResponse(info);
@@ -147,6 +156,9 @@ export function interceptFetch(options: {
   onResponse?: ResponseInterceptor | undefined;
 }): InterceptHandle {
   ensureFetchPatched();
+  if (fetchInterceptors.size >= MAX_FETCH_INTERCEPTORS) {
+    throw new Error(`Maximum number of fetch interceptors (${MAX_FETCH_INTERCEPTORS}) reached.`);
+  }
   fetchInterceptors.add(options);
 
   return {
@@ -160,6 +172,9 @@ export function interceptFetch(options: {
 const xhrInterceptors = new Set<InterceptOptions>();
 let xhrPatched = false;
 let OriginalXHR: typeof XMLHttpRequest;
+
+/** @internal Maximum number of registered XHR interceptors. */
+const MAX_XHR_INTERCEPTORS = 100;
 
 /** @internal Patches window.XMLHttpRequest exactly once. */
 function ensureXHRPatched(): void {
@@ -177,7 +192,9 @@ function ensureXHRPatched(): void {
       capturedMethod = method;
       capturedUrl = typeof url === 'string' ? url : url.href;
 
-      for (const interceptor of xhrInterceptors) {
+      // Snapshot the Set to avoid mutation during iteration
+      const snapshot = [...xhrInterceptors];
+      for (const interceptor of snapshot) {
         if (interceptor.onRequest) {
           try {
             interceptor.onRequest({ url: capturedUrl, method: capturedMethod });
@@ -187,13 +204,16 @@ function ensureXHRPatched(): void {
         }
       }
 
-      return (originalOpen as Function).call(xhr, method, url, ...rest);
+      return (originalOpen as (...args: unknown[]) => void).call(xhr, method, url, ...rest);
     } as typeof xhr.open;
 
     // Only process response if there are response interceptors
     xhr.addEventListener('load', () => {
+      // Snapshot the Set to avoid mutation during iteration
+      const snapshot = [...xhrInterceptors];
+
       let hasResponseInterceptor = false;
-      for (const interceptor of xhrInterceptors) {
+      for (const interceptor of snapshot) {
         if (interceptor.onResponse) {
           hasResponseInterceptor = true;
           break;
@@ -212,7 +232,7 @@ function ensureXHRPatched(): void {
       }
 
       const info: InterceptedResponse = { url: capturedUrl, status: xhr.status, body };
-      for (const interceptor of xhrInterceptors) {
+      for (const interceptor of snapshot) {
         if (interceptor.onResponse) {
           try {
             interceptor.onResponse(info);
@@ -261,6 +281,9 @@ export function interceptXHR(options: {
   onResponse?: ResponseInterceptor | undefined;
 }): InterceptHandle {
   ensureXHRPatched();
+  if (xhrInterceptors.size >= MAX_XHR_INTERCEPTORS) {
+    throw new Error(`Maximum number of XHR interceptors (${MAX_XHR_INTERCEPTORS}) reached.`);
+  }
   xhrInterceptors.add(options);
 
   return {

@@ -51,7 +51,7 @@ describe('interceptFetch', () => {
     const response = await window.fetch('https://example.com/blocked');
 
     expect(onRequest).toHaveBeenCalled();
-    expect(response.status).toBe(0);
+    expect(response.status).toBe(403);
     expect(mockFetch).not.toHaveBeenCalled();
 
     handle.restore();
@@ -163,13 +163,47 @@ describe('interceptFetch', () => {
     const onRequest = vi.fn();
     const handle = interceptFetch({ onRequest });
 
-    await window.fetch(new Request('https://example.com/req-obj'));
+    await window.fetch(new Request('https://example.com/req-obj', { method: 'PUT' }));
 
-    expect(onRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ url: 'https://example.com/req-obj' }),
-    );
+    expect(onRequest).toHaveBeenCalledWith({
+      url: 'https://example.com/req-obj',
+      method: 'PUT',
+    });
 
     handle.restore();
+  });
+
+  it('extracts method from Request object when init is not provided', async () => {
+    const { interceptFetch } = await import('../intercept');
+    const onRequest = vi.fn();
+    const handle = interceptFetch({ onRequest });
+
+    await window.fetch(new Request('https://example.com/req-default'));
+
+    expect(onRequest).toHaveBeenCalledWith({
+      url: 'https://example.com/req-default',
+      method: 'GET',
+    });
+
+    handle.restore();
+  });
+
+  it('throws when maximum number of fetch interceptors is reached', async () => {
+    const { interceptFetch } = await import('../intercept');
+    const handles: ReturnType<typeof interceptFetch>[] = [];
+
+    // Register 100 interceptors (the max)
+    for (let i = 0; i < 100; i++) {
+      handles.push(interceptFetch({ onRequest: () => {} }));
+    }
+
+    // The 101st should throw
+    expect(() => interceptFetch({ onRequest: () => {} })).toThrow(
+      'Maximum number of fetch interceptors (100) reached.',
+    );
+
+    // Cleanup
+    for (const h of handles) h.restore();
   });
 });
 
@@ -302,6 +336,24 @@ describe('interceptXHR', () => {
     const xhr2 = new window.XMLHttpRequest();
     xhr2.open('GET', 'https://example.com/after');
     expect(onRequest).not.toHaveBeenCalled();
+  });
+
+  it('throws when maximum number of XHR interceptors is reached', async () => {
+    const { interceptXHR } = await import('../intercept');
+    const handles: ReturnType<typeof interceptXHR>[] = [];
+
+    // Register 100 interceptors (the max)
+    for (let i = 0; i < 100; i++) {
+      handles.push(interceptXHR({ onRequest: () => {} }));
+    }
+
+    // The 101st should throw
+    expect(() => interceptXHR({ onRequest: () => {} })).toThrow(
+      'Maximum number of XHR interceptors (100) reached.',
+    );
+
+    // Cleanup
+    for (const h of handles) h.restore();
   });
 
   it('works without callbacks', async () => {

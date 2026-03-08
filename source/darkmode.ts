@@ -14,7 +14,10 @@ import { wrapError } from './utils/errors';
 import { toArray, validateCssSelector } from './utils/dom';
 
 /** @internal Pattern to reject dangerous characters in additionalFilters. */
-const DANGEROUS_FILTER_CHARS = /[{}<>]/;
+const DANGEROUS_FILTER_CHARS = /[{}<>;]/;
+
+/** @internal Pattern to reject url() references in additionalFilters. */
+const DANGEROUS_FILTER_URL = /url\s*\(/i;
 
 /**
  * Validates that a numeric parameter is a finite number.
@@ -37,8 +40,8 @@ function getInversionCss({
 }: InvertColorsOptions = {}): string {
   validateCssSelector(tags);
   validateFiniteNumber(invert, 'invert');
-  if (DANGEROUS_FILTER_CHARS.test(additionalFilters)) {
-    throw new Error('additionalFilters contains invalid characters.');
+  if (DANGEROUS_FILTER_CHARS.test(additionalFilters) || DANGEROUS_FILTER_URL.test(additionalFilters)) {
+    throw new Error('additionalFilters contains invalid characters or url() references.');
   }
   return `
     body { background: white; }
@@ -161,34 +164,32 @@ function getElementDarkmodeCss(selector: string, method: DarkmodeMethod): string
 function applyElementDarkmode(
   { selectorOrArrayOfSelectors }: ElementDarkmodeOptions,
   method: DarkmodeMethod,
-): HTMLStyleElement | HTMLStyleElement[] {
+): HTMLStyleElement {
   const selectors = toArray(selectorOrArrayOfSelectors);
 
   // Batch all CSS into a single <style> element to avoid N style recalculations
   const combinedCss = selectors.map((selector) => getElementDarkmodeCss(selector, method)).join('\n');
-  const singleStyle = injectTextHead({ text: combinedCss });
-
-  return Array.isArray(selectorOrArrayOfSelectors) ? selectors.map(() => singleStyle) : singleStyle;
+  return injectTextHead({ text: combinedCss });
 }
 
 /**
  * Apply darkmode method 1 (invert + hue-rotate + forced colors/background) to element(s).
  */
-export function elementDarkmodeMethod1(options: ElementDarkmodeOptions): HTMLStyleElement | HTMLStyleElement[] {
+export function elementDarkmodeMethod1(options: ElementDarkmodeOptions): HTMLStyleElement {
   return applyElementDarkmode(options, 1);
 }
 
 /**
  * Apply darkmode method 2 (forced colors/background only) to element(s).
  */
-export function elementDarkmodeMethod2(options: ElementDarkmodeOptions): HTMLStyleElement | HTMLStyleElement[] {
+export function elementDarkmodeMethod2(options: ElementDarkmodeOptions): HTMLStyleElement {
   return applyElementDarkmode(options, 2);
 }
 
 /**
  * Apply darkmode method 3 (invert images within selector) to element(s).
  */
-export function elementDarkmodeMethod3(options: ElementDarkmodeOptions): HTMLStyleElement | HTMLStyleElement[] {
+export function elementDarkmodeMethod3(options: ElementDarkmodeOptions): HTMLStyleElement {
   return applyElementDarkmode(options, 3);
 }
 

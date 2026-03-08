@@ -113,6 +113,24 @@ describe('url', () => {
 
       expect(callback).not.toHaveBeenCalled();
     });
+
+    it('throws when maximum number of URL callbacks is reached', async () => {
+      const { onUrlChange } = await import('../url');
+      const handles: ReturnType<typeof onUrlChange>[] = [];
+
+      // Register 200 callbacks (the max)
+      for (let i = 0; i < 200; i++) {
+        handles.push(onUrlChange(() => {}));
+      }
+
+      // The 201st should throw
+      expect(() => onUrlChange(() => {})).toThrow(
+        'Maximum number of URL change callbacks (200) reached.',
+      );
+
+      // Cleanup
+      for (const h of handles) h.stop();
+    });
   });
 
   describe('getUrlParams', () => {

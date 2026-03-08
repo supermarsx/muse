@@ -61,7 +61,7 @@ export function pollUntil<T>(
 
     const cleanup = (): void => {
       clearTimeout(pollTimer);
-      clearTimeout(timer);
+      clearTimeout(timeoutTimer);
       signal?.removeEventListener('abort', onAbort);
     };
 
@@ -71,6 +71,12 @@ export function pollUntil<T>(
     };
 
     signal?.addEventListener('abort', onAbort, { once: true });
+
+    // Assign timeout timer BEFORE first check to ensure it's always initialized
+    const timeoutTimer = setTimeout(() => {
+      cleanup();
+      reject(new Error(timeoutMessage, { cause: lastError }));
+    }, timeout);
 
     const check = (): void => {
       try {
@@ -89,10 +95,5 @@ export function pollUntil<T>(
 
     // Immediate first check — avoid unnecessary delay when condition is already met
     check();
-
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(new Error(timeoutMessage, { cause: lastError }));
-    }, timeout);
   });
 }
