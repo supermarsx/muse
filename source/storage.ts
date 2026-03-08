@@ -54,7 +54,7 @@ export function createStorage(options: CreateStorageOptions = {}): TypedStorage 
   const prefix = options.prefix ?? '';
   const backend = options.backend ?? localStorage;
 
-  const prefixedKey = (key: string): string => `${prefix}${key}`;
+  const prefixedKey = prefix ? (key: string): string => `${prefix}${key}` : (key: string): string => key;
 
   return {
     get<T>(key: string, defaultValue?: T): T | null {
@@ -90,16 +90,12 @@ export function createStorage(options: CreateStorageOptions = {}): TypedStorage 
         backend.clear();
         return;
       }
-      // Only remove keys with our prefix
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < backend.length; i++) {
+      // Iterate backward to avoid index shifting when removing
+      for (let i = backend.length - 1; i >= 0; i--) {
         const k = backend.key(i);
         if (k?.startsWith(prefix)) {
-          keysToRemove.push(k);
+          backend.removeItem(k);
         }
-      }
-      for (const k of keysToRemove) {
-        backend.removeItem(k);
       }
     },
   };
