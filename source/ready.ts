@@ -38,15 +38,13 @@ export function onReady(options: OnReadyOptions = {}): Promise<void> {
       return;
     }
 
-    document.addEventListener(
-      'readystatechange',
-      () => {
-        if (isStateReached(document.readyState, target)) {
-          resolve();
-        }
-      },
-      { once: target === 'complete' },
-    );
+    const handler = (): void => {
+      if (isStateReached(document.readyState, target)) {
+        document.removeEventListener('readystatechange', handler);
+        resolve();
+      }
+    };
+    document.addEventListener('readystatechange', handler);
   });
 }
 
@@ -72,15 +70,13 @@ export function whenReady(callback: () => void, options: OnReadyOptions = {}): v
     return;
   }
 
-  document.addEventListener(
-    'readystatechange',
-    () => {
-      if (isStateReached(document.readyState, target)) {
-        callback();
-      }
-    },
-    { once: target === 'complete' },
-  );
+  const handler = (): void => {
+    if (isStateReached(document.readyState, target)) {
+      document.removeEventListener('readystatechange', handler);
+      callback();
+    }
+  };
+  document.addEventListener('readystatechange', handler);
 }
 
 /** Numeric ordering for comparison. */
