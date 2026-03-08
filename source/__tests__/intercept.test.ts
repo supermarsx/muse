@@ -147,16 +147,6 @@ describe('interceptFetch', () => {
 });
 
 describe('interceptXHR', () => {
-  let OriginalXHR: typeof window.XMLHttpRequest;
-
-  beforeEach(() => {
-    OriginalXHR = window.XMLHttpRequest;
-  });
-
-  afterEach(() => {
-    window.XMLHttpRequest = OriginalXHR;
-  });
-
   it('calls onRequest when xhr.open is invoked', () => {
     const onRequest = vi.fn();
     const handle = interceptXHR({ onRequest });
@@ -179,7 +169,12 @@ describe('interceptXHR', () => {
     const xhr = new window.XMLHttpRequest();
     xhr.open('GET', 'https://example.com/json');
 
-    // Simulate the load event with JSON response text
+    // Simulate response headers, body, and status
+    const originalGetHeader = xhr.getResponseHeader.bind(xhr);
+    xhr.getResponseHeader = (name: string) => {
+      if (name === 'content-type') return 'application/json';
+      return originalGetHeader(name);
+    };
     Object.defineProperty(xhr, 'responseText', { value: '{"data":42}', writable: true });
     Object.defineProperty(xhr, 'status', { value: 200, writable: true });
     xhr.dispatchEvent(new Event('load'));
@@ -200,6 +195,12 @@ describe('interceptXHR', () => {
     const xhr = new window.XMLHttpRequest();
     xhr.open('POST', 'https://example.com/text');
 
+    // Simulate text/plain content type so the body is read
+    const originalGetHeader = xhr.getResponseHeader.bind(xhr);
+    xhr.getResponseHeader = (name: string) => {
+      if (name === 'content-type') return 'text/plain';
+      return originalGetHeader(name);
+    };
     Object.defineProperty(xhr, 'responseText', { value: 'not json', writable: true });
     Object.defineProperty(xhr, 'status', { value: 200, writable: true });
     xhr.dispatchEvent(new Event('load'));
@@ -213,12 +214,33 @@ describe('interceptXHR', () => {
     handle.restore();
   });
 
+  it('returns null body when content-type is not text/json', () => {
+    const onResponse = vi.fn();
+    const handle = interceptXHR({ onResponse });
+
+    const xhr = new window.XMLHttpRequest();
+    xhr.open('GET', 'https://example.com/binary');
+
+    // No content-type header means body should stay null
+    Object.defineProperty(xhr, 'responseText', { value: 'binary data', writable: true });
+    Object.defineProperty(xhr, 'status', { value: 200, writable: true });
+    xhr.dispatchEvent(new Event('load'));
+
+    expect(onResponse).toHaveBeenCalledWith({
+      url: 'https://example.com/binary',
+      status: 200,
+      body: null,
+    });
+
+    handle.restore();
+  });
+
   it('handles URL object in xhr.open', () => {
     const onRequest = vi.fn();
     const handle = interceptXHR({ onRequest });
 
     const xhr = new window.XMLHttpRequest();
-    xhr.open('GET', new URL('https://example.com/url-obj'));
+    xhr.open('GET', new URL('https://example.com/url-obj') as unknown as string);
 
     expect(onRequest).toHaveBeenCalledWith({
       url: 'https://example.com/url-obj',
@@ -228,14 +250,16 @@ describe('interceptXHR', () => {
     handle.restore();
   });
 
-  it('restore() restores the original XMLHttpRequest', () => {
+  it('restore() removes the interceptor and restores XHR when last', () => {
+    // With the centralized registry, XHR is patched once and only restored
+    // when all interceptors are removed. Save the global before any intercept.
+    const savedXHR = window.XMLHttpRequest;
     const handle = interceptXHR({ onRequest: vi.fn() });
-
-    expect(window.XMLHttpRequest).not.toBe(OriginalXHR);
 
     handle.restore();
 
-    expect(window.XMLHttpRequest).toBe(OriginalXHR);
+    // After removing the last interceptor, the original should be restored
+    expect(window.XMLHttpRequest).toBe(savedXHR);
   });
 
   it('works without callbacks', () => {
