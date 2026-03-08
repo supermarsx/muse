@@ -21,7 +21,7 @@ export interface InterceptedResponse {
   url: string;
   /** The HTTP status code. */
   status: number;
-  /** The response body (may be null if not available). */
+  /** The response body (parsed JSON, text string, or null if not readable/binary). */
   body: unknown;
 }
 
@@ -44,9 +44,81 @@ export interface InterceptHandle {
   restore(): void;
 }
 
+/** @internal Intercept options shape. */
+interface InterceptOptions {
+  onRequest?: RequestInterceptor | undefined;
+  onResponse?: ResponseInterceptor | undefined;
+}
+
+// --- Centralized fetch interception registry ---
+const fetchInterceptors = new Set<InterceptOptions>();
+let fetchPatched = false;
+let originalFetch: typeof window.fetch;
+
+/** @internal Patches window.fetch exactly once. */
+function ensureFetchPatched(): void {
+  if (fetchPatched) return;
+  fetchPatched = true;
+  originalFetch = window.fetch.bind(window);
+
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const method = init?.method ?? 'GET';
+
+    // Fire onRequest callbacks; if any returns false, block the request
+    for (const interceptor of fetchInterceptors) {
+      if (interceptor.onRequest) {
+        const result = interceptor.onRequest({ url, method });
+        if (result === false) {
+          return new Response(null, { status: 0, statusText: 'Blocked by interceptor' });
+        }
+      }
+    }
+
+    const response = await originalFetch(input, init);
+
+    // Fire onResponse callbacks asynchronously to avoid blocking the caller
+    const respondInterceptors = [...fetchInterceptors].filter((i) => i.onResponse);
+    if (respondInterceptors.length > 0) {
+      const clone = response.clone();
+      // Only read body for text/json content types to avoid consuming large binary responses
+      void (async () => {
+        let body: unknown = null;
+        const contentType = clone.headers.get('content-type') ?? '';
+        if (contentType.includes('json') || contentType.includes('text')) {
+          try {
+            const text = await clone.text();
+            try {
+              body = JSON.parse(text);
+            } catch {
+              body = text;
+            }
+          } catch {
+            // Body not readable — leave as null
+          }
+        }
+        const info: InterceptedResponse = { url, status: response.status, body };
+        for (const interceptor of respondInterceptors) {
+          try {
+            interceptor.onResponse!(info);
+          } catch {
+            // Don't let one interceptor break others
+          }
+        }
+      })();
+    }
+
+    return response;
+  };
+}
+
 /**
  * Intercepts all `fetch()` calls. The `onRequest` callback fires before each
  * request; the `onResponse` callback fires after each response.
+ *
+ * Multiple calls share a single fetch patch, avoiding the stacking problem
+ * where each call wraps the previous wrapper. Calling `restore()` safely
+ * removes only the registered interceptor.
  *
  * @param options - Intercept callbacks.
  * @returns An {@link InterceptHandle} to restore the original `fetch`.
@@ -66,51 +138,98 @@ export function interceptFetch(options: {
   onRequest?: RequestInterceptor | undefined;
   onResponse?: ResponseInterceptor | undefined;
 }): InterceptHandle {
-  const originalFetch = window.fetch.bind(window);
-
-  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    const method = init?.method ?? 'GET';
-
-    if (options.onRequest) {
-      const result = options.onRequest({ url, method });
-      if (result === false) {
-        return new Response(null, { status: 0, statusText: 'Blocked by interceptor' });
-      }
-    }
-
-    const response = await originalFetch(input, init);
-
-    if (options.onResponse) {
-      // Clone so the original response body is still consumable
-      const clone = response.clone();
-      let body: unknown = null;
-      try {
-        const text = await clone.text();
-        try {
-          body = JSON.parse(text);
-        } catch {
-          body = text;
-        }
-      } catch {
-        // Body not readable — leave as null
-      }
-      options.onResponse({ url, status: response.status, body });
-    }
-
-    return response;
-  };
+  ensureFetchPatched();
+  fetchInterceptors.add(options);
 
   return {
     restore: () => {
-      window.fetch = originalFetch;
+      fetchInterceptors.delete(options);
+      if (fetchInterceptors.size === 0 && fetchPatched) {
+        window.fetch = originalFetch;
+        fetchPatched = false;
+      }
     },
   };
+}
+
+// --- Centralized XHR interception registry ---
+const xhrInterceptors = new Set<InterceptOptions>();
+let xhrPatched = false;
+let OriginalXHR: typeof XMLHttpRequest;
+
+/** @internal Patches window.XMLHttpRequest exactly once. */
+function ensureXHRPatched(): void {
+  if (xhrPatched) return;
+  xhrPatched = true;
+  OriginalXHR = window.XMLHttpRequest;
+
+  const PatchedXHR = function (this: XMLHttpRequest) {
+    const xhr = new OriginalXHR();
+    let capturedUrl = '';
+    let capturedMethod = 'GET';
+
+    const originalOpen = xhr.open;
+    xhr.open = function (method: string, url: string | URL, ...rest: unknown[]) {
+      capturedMethod = method;
+      capturedUrl = typeof url === 'string' ? url : url.href;
+
+      for (const interceptor of xhrInterceptors) {
+        if (interceptor.onRequest) {
+          try {
+            interceptor.onRequest({ url: capturedUrl, method: capturedMethod });
+          } catch {
+            // Don't let one interceptor break others
+          }
+        }
+      }
+
+      return (originalOpen as Function).call(xhr, method, url, ...rest);
+    } as typeof xhr.open;
+
+    // Only attach load listener if there are response interceptors
+    xhr.addEventListener('load', () => {
+      const respondInterceptors = [...xhrInterceptors].filter((i) => i.onResponse);
+      if (respondInterceptors.length === 0) return;
+
+      let body: unknown = null;
+      const contentType = xhr.getResponseHeader('content-type') ?? '';
+      if (contentType.includes('json') || contentType.includes('text')) {
+        try {
+          body = JSON.parse(xhr.responseText);
+        } catch {
+          body = xhr.responseText;
+        }
+      }
+
+      const info: InterceptedResponse = { url: capturedUrl, status: xhr.status, body };
+      for (const interceptor of respondInterceptors) {
+        try {
+          interceptor.onResponse!(info);
+        } catch {
+          // Don't let one interceptor break others
+        }
+      }
+    });
+
+    return xhr;
+  } as unknown as typeof XMLHttpRequest;
+
+  PatchedXHR.prototype = OriginalXHR.prototype;
+  Object.defineProperty(PatchedXHR, 'UNSENT', { value: 0 });
+  Object.defineProperty(PatchedXHR, 'OPENED', { value: 1 });
+  Object.defineProperty(PatchedXHR, 'HEADERS_RECEIVED', { value: 2 });
+  Object.defineProperty(PatchedXHR, 'LOADING', { value: 3 });
+  Object.defineProperty(PatchedXHR, 'DONE', { value: 4 });
+
+  window.XMLHttpRequest = PatchedXHR;
 }
 
 /**
  * Intercepts all `XMLHttpRequest` calls. The `onRequest` callback fires on
  * `open()`; the `onResponse` callback fires on `load`.
+ *
+ * Multiple calls share a single XHR patch, avoiding the stacking problem.
+ * Calling `restore()` safely removes only the registered interceptor.
  *
  * @param options - Intercept callbacks.
  * @returns An {@link InterceptHandle} to restore the original XMLHttpRequest.
@@ -129,54 +248,16 @@ export function interceptXHR(options: {
   onRequest?: RequestInterceptor | undefined;
   onResponse?: ResponseInterceptor | undefined;
 }): InterceptHandle {
-  const OriginalXHR = window.XMLHttpRequest;
-
-  const PatchedXHR = function (this: XMLHttpRequest) {
-    const xhr = new OriginalXHR();
-    let capturedUrl = '';
-    let capturedMethod = 'GET';
-
-    const originalOpen = xhr.open.bind(xhr);
-    xhr.open = ((method: string, url: string | URL, ...rest: unknown[]) => {
-      capturedMethod = method;
-      capturedUrl = typeof url === 'string' ? url : url.href;
-
-      if (options.onRequest) {
-        options.onRequest({ url: capturedUrl, method: capturedMethod });
-      }
-
-      // Call the original open with proper arguments
-      return (originalOpen as (...args: unknown[]) => void)(method, url, ...rest);
-    }) as typeof xhr.open;
-
-    if (options.onResponse) {
-      xhr.addEventListener('load', () => {
-        let body: unknown = null;
-        try {
-          body = JSON.parse(xhr.responseText);
-        } catch {
-          body = xhr.responseText;
-        }
-        options.onResponse!({ url: capturedUrl, status: xhr.status, body });
-      });
-    }
-
-    return xhr;
-  } as unknown as typeof XMLHttpRequest;
-
-  PatchedXHR.prototype = OriginalXHR.prototype;
-  // Preserve static properties
-  Object.defineProperty(PatchedXHR, 'UNSENT', { value: 0 });
-  Object.defineProperty(PatchedXHR, 'OPENED', { value: 1 });
-  Object.defineProperty(PatchedXHR, 'HEADERS_RECEIVED', { value: 2 });
-  Object.defineProperty(PatchedXHR, 'LOADING', { value: 3 });
-  Object.defineProperty(PatchedXHR, 'DONE', { value: 4 });
-
-  window.XMLHttpRequest = PatchedXHR;
+  ensureXHRPatched();
+  xhrInterceptors.add(options);
 
   return {
     restore: () => {
-      window.XMLHttpRequest = OriginalXHR;
+      xhrInterceptors.delete(options);
+      if (xhrInterceptors.size === 0 && xhrPatched) {
+        window.XMLHttpRequest = OriginalXHR;
+        xhrPatched = false;
+      }
     },
   };
 }
