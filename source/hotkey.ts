@@ -64,9 +64,16 @@ export interface HotkeyHandle {
  * ```
  */
 export function registerHotkeys(bindings: HotkeyBinding[]): HotkeyHandle {
+  // Pre-normalize keys to avoid repeated toLowerCase() on every keydown
+  const normalizedBindings = bindings.map((b) => ({
+    ...b,
+    _lowerKey: b.key.toLowerCase(),
+  }));
+
   const listener = (event: KeyboardEvent): void => {
-    for (const binding of bindings) {
-      if (matchesBinding(event, binding)) {
+    const eventKey = event.key.toLowerCase();
+    for (const binding of normalizedBindings) {
+      if (eventKey === binding._lowerKey && matchesModifiers(event, binding)) {
         if (binding.preventDefault !== false) {
           event.preventDefault();
         }
@@ -142,6 +149,9 @@ export function parseHotkey(
         modifiers.meta = true;
         break;
       default:
+        if (key) {
+          throw new Error(`parseHotkey: multiple keys found in shortcut "${shortcut}" ("${key}" and "${part}").`);
+        }
         key = part;
     }
   }
@@ -153,13 +163,10 @@ export function parseHotkey(
   return { key, modifiers, handler };
 }
 
-/** Checks whether a keyboard event matches a binding. */
-function matchesBinding(event: KeyboardEvent, binding: HotkeyBinding): boolean {
+/** Checks whether a keyboard event's modifier state matches a binding. */
+function matchesModifiers(event: KeyboardEvent, binding: HotkeyBinding): boolean {
   const mod = binding.modifiers ?? {};
 
-  if (event.key.toLowerCase() !== binding.key.toLowerCase()) {
-    return false;
-  }
   if (!!mod.ctrl !== (event.ctrlKey || event.metaKey)) {
     // Treat Ctrl and Meta (Cmd) as interchangeable when ctrl is specified
     // Only if meta is not separately required

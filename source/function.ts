@@ -76,6 +76,9 @@ export function waitForNestedFunction({
   );
 }
 
+/** @internal Regex to match function call patterns in script contents. */
+const FUNCTION_CALL_REGEX = /(((\w|\.)+)\((([^)]*)\);*))/g;
+
 /**
  * Scans all inline `<script>` elements and extracts function call signatures
  * using a regex pattern.
@@ -85,12 +88,11 @@ export function waitForNestedFunction({
 export function getFunctionList(): RegExpMatchArray[] {
   try {
     const scripts = getAllScripts();
-    const functionRegex = /(((\w|\.)+)\((([^)]*)\);*))/g;
     const results: RegExpMatchArray[] = [];
 
     for (const script of scripts) {
       const contents = script.innerHTML;
-      const matches = Array.from(contents.matchAll(functionRegex));
+      const matches = Array.from(contents.matchAll(FUNCTION_CALL_REGEX));
       for (const match of matches) {
         results.push(match);
       }
@@ -112,11 +114,17 @@ export function getFunctionList(): RegExpMatchArray[] {
  */
 export function getOriginalParameters({ functionName }: GetOriginalParametersOptions): string[] {
   try {
-    const functionList = getFunctionList();
-    for (const fn of functionList) {
-      const currentScript = fn[2];
-      if (currentScript.includes(functionName)) {
-        return fn[5].split(',');
+    const scripts = getAllScripts();
+
+    for (const script of scripts) {
+      const contents = script.innerHTML;
+      for (const match of contents.matchAll(FUNCTION_CALL_REGEX)) {
+        const currentScript = match[2];
+        if (currentScript?.includes(functionName)) {
+          const params = match[5];
+          if (!params || params.trim() === '') return [];
+          return params.split(',').map((p) => p.trim());
+        }
       }
     }
     throw new Error(`Function "${functionName}" not found in script contents.`);
