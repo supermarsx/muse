@@ -16,7 +16,8 @@ export interface DebounceOptions {
 /**
  * A debounced function with a `cancel` method to clear any pending invocation.
  */
-export interface DebouncedFunction<T extends (...args: unknown[]) => unknown> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface DebouncedFunction<T extends (...args: any[]) => any> {
   (...args: Parameters<T>): void;
   /** Cancel any pending delayed invocation. */
   cancel(): void;
@@ -92,7 +93,8 @@ export interface ThrottleOptions {
 /**
  * A throttled function with a `cancel` method to clear any pending trailing invocation.
  */
-export interface ThrottledFunction<T extends (...args: unknown[]) => unknown> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface ThrottledFunction<T extends (...args: any[]) => any> {
   (...args: Parameters<T>): void;
   /** Cancel any pending trailing invocation. */
   cancel(): void;
@@ -160,10 +162,22 @@ export function throttle<T extends (...args: unknown[]) => unknown>(
 }
 
 /**
+ * Options for {@link sleep}.
+ */
+export interface SleepOptions {
+  /** An AbortSignal to cancel the sleep early. The returned Promise rejects with an `AbortError`. */
+  signal?: AbortSignal | undefined;
+}
+
+/**
  * Returns a Promise that resolves after the specified number of milliseconds.
  * Useful for introducing delays in async flows.
  *
+ * Supports an optional {@link AbortSignal} to cancel the sleep early, which
+ * causes the returned Promise to reject with an `AbortError`.
+ *
  * @param ms - The number of milliseconds to wait.
+ * @param options - Optional settings including an AbortSignal.
  * @returns A Promise that resolves after `ms` milliseconds.
  *
  * @example
@@ -171,9 +185,38 @@ export function throttle<T extends (...args: unknown[]) => unknown>(
  * await sleep(1000); // Wait 1 second
  * console.log('Done!');
  * ```
+ *
+ * @example
+ * ```ts
+ * const controller = new AbortController();
+ * setTimeout(() => controller.abort(), 500);
+ * try {
+ *   await sleep(10000, { signal: controller.signal });
+ * } catch (err) {
+ *   console.log('Sleep was cancelled');
+ * }
+ * ```
  */
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export function sleep(ms: number, options?: SleepOptions): Promise<void> {
+  const { signal } = options ?? {};
+
+  if (signal?.aborted) {
+    return Promise.reject(new DOMException('Sleep aborted', 'AbortError'));
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+
+    function onAbort(): void {
+      clearTimeout(timer);
+      reject(new DOMException('Sleep aborted', 'AbortError'));
+    }
+
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 /**
