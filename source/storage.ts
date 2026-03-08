@@ -90,12 +90,16 @@ export function createStorage(options: CreateStorageOptions = {}): TypedStorage 
         backend.clear();
         return;
       }
-      // Iterate backward to avoid index shifting when removing
-      for (let i = backend.length - 1; i >= 0; i--) {
+      // Collect keys first, then remove — avoids index shifting during iteration
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < backend.length; i++) {
         const k = backend.key(i);
         if (k?.startsWith(prefix)) {
-          backend.removeItem(k);
+          keysToRemove.push(k);
         }
+      }
+      for (const k of keysToRemove) {
+        backend.removeItem(k);
       }
     },
   };

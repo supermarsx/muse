@@ -82,6 +82,12 @@ export function waitForNestedFunction({
 /** @internal Regex to match function call patterns in script contents. */
 const FUNCTION_CALL_REGEX = /(([\w.]+)\(([^)]*)\);*)/g;
 
+/** @internal Maximum script content length to scan (100 KB). */
+const MAX_SCRIPT_SCAN_LENGTH = 100_000;
+
+/** @internal Maximum number of function call results to return. */
+const MAX_RESULTS = 1000;
+
 /**
  * Scans all inline `<script>` elements and extracts function call signatures
  * using a regex pattern.
@@ -95,8 +101,10 @@ export function getFunctionList(): RegExpMatchArray[] {
 
     for (const script of scripts) {
       const contents = script.innerHTML;
+      if (contents.length > MAX_SCRIPT_SCAN_LENGTH) continue;
       for (const match of contents.matchAll(FUNCTION_CALL_REGEX)) {
         results.push(match);
+        if (results.length >= MAX_RESULTS) return results;
       }
     }
 
@@ -120,9 +128,10 @@ export function getOriginalParameters({ functionName }: GetOriginalParametersOpt
 
     for (const script of scripts) {
       const contents = script.innerHTML;
+      if (contents.length > MAX_SCRIPT_SCAN_LENGTH) continue;
       for (const match of contents.matchAll(FUNCTION_CALL_REGEX)) {
         const currentScript = match[2];
-        if (currentScript?.includes(functionName)) {
+        if (currentScript === functionName) {
           const params = match[3];
           if (!params || params.trim() === '') return [];
           return params.split(',').map((p) => p.trim());

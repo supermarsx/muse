@@ -87,8 +87,8 @@ export function pollUntil<T>(
       pollTimer = setTimeout(check, interval);
     };
 
-    // Start first check
-    pollTimer = setTimeout(check, interval);
+    // Immediate first check — avoid unnecessary delay when condition is already met
+    check();
 
     const timer = setTimeout(() => {
       cleanup();

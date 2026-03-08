@@ -152,10 +152,6 @@ export function interceptFetch(options: {
   return {
     restore: () => {
       fetchInterceptors.delete(options);
-      if (fetchInterceptors.size === 0 && fetchPatched) {
-        window.fetch = originalFetch;
-        fetchPatched = false;
-      }
     },
   };
 }
@@ -270,10 +266,6 @@ export function interceptXHR(options: {
   return {
     restore: () => {
       xhrInterceptors.delete(options);
-      if (xhrInterceptors.size === 0 && xhrPatched) {
-        window.XMLHttpRequest = OriginalXHR;
-        xhrPatched = false;
-      }
     },
   };
 }

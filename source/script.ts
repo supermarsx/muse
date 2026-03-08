@@ -122,6 +122,8 @@ export function removeExternalScripts(scriptNames: string[]): RemovalResult[] {
           break;
         }
       }
+      // All names found — no need to scan remaining scripts
+      if (removedSet.size === scriptNames.length) break;
     }
 
     return scriptNames.map((name) => ({

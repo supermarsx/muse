@@ -1,16 +1,27 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { interceptFetch, interceptXHR, Intercept } from '../intercept';
 
+// Because the intercept module patches globals once and never restores them,
+// we need to import a fresh module for each test. Use dynamic imports with
+// vi.resetModules() to achieve this.
 describe('interceptFetch', () => {
-  const mockFetch = vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ ok: true }), { status: 200 }),
-  );
+  const mockResponse = new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const mockFetch = vi.fn().mockResolvedValue(mockResponse);
   let originalFetch: typeof window.fetch;
 
   beforeEach(() => {
+    vi.resetModules();
     originalFetch = window.fetch;
     window.fetch = mockFetch;
     mockFetch.mockClear();
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
   });
 
   afterEach(() => {
@@ -18,6 +29,7 @@ describe('interceptFetch', () => {
   });
 
   it('calls onRequest with url and method', async () => {
+    const { interceptFetch } = await import('../intercept');
     const onRequest = vi.fn();
     const handle = interceptFetch({ onRequest });
 
@@ -32,6 +44,7 @@ describe('interceptFetch', () => {
   });
 
   it('blocks the request when onRequest returns false', async () => {
+    const { interceptFetch } = await import('../intercept');
     const onRequest = vi.fn().mockReturnValue(false);
     const handle = interceptFetch({ onRequest });
 
@@ -44,22 +57,25 @@ describe('interceptFetch', () => {
     handle.restore();
   });
 
-  it('restore() restores the original fetch', async () => {
+  it('restore() removes the interceptor callback', async () => {
+    const { interceptFetch } = await import('../intercept');
     const onRequest = vi.fn();
     const handle = interceptFetch({ onRequest });
 
-    // While intercepted, fetch is patched
-    expect(window.fetch).not.toBe(mockFetch);
+    // Fetch is now patched
+    await window.fetch('https://example.com/before-restore');
+    expect(onRequest).toHaveBeenCalledTimes(1);
 
     handle.restore();
 
-    // After restore, calling fetch should no longer trigger onRequest
+    // After restore, the callback should not be called (patch stays but Set is empty)
     onRequest.mockClear();
     await window.fetch('https://example.com/after-restore');
     expect(onRequest).not.toHaveBeenCalled();
   });
 
   it('works without onRequest or onResponse callbacks', async () => {
+    const { interceptFetch } = await import('../intercept');
     const handle = interceptFetch({});
 
     await window.fetch('https://example.com/plain');
@@ -70,10 +86,14 @@ describe('interceptFetch', () => {
   });
 
   it('calls onResponse with parsed JSON body', async () => {
+    const { interceptFetch } = await import('../intercept');
     const onResponse = vi.fn();
     const handle = interceptFetch({ onResponse });
 
     await window.fetch('https://example.com/api');
+
+    // onResponse fires asynchronously — flush microtasks
+    await new Promise((r) => setTimeout(r, 0));
 
     expect(onResponse).toHaveBeenCalledWith({
       url: 'https://example.com/api',
@@ -90,10 +110,14 @@ describe('interceptFetch', () => {
     );
     window.fetch = textFetch;
 
+    const { interceptFetch } = await import('../intercept');
     const onResponse = vi.fn();
     const handle = interceptFetch({ onResponse });
 
     await window.fetch('https://example.com/text');
+
+    // onResponse fires asynchronously — flush microtasks
+    await new Promise((r) => setTimeout(r, 0));
 
     expect(onResponse).toHaveBeenCalledWith({
       url: 'https://example.com/text',
@@ -105,6 +129,7 @@ describe('interceptFetch', () => {
   });
 
   it('defaults method to GET when not specified', async () => {
+    const { interceptFetch } = await import('../intercept');
     const onRequest = vi.fn();
     const handle = interceptFetch({ onRequest });
 
@@ -119,6 +144,7 @@ describe('interceptFetch', () => {
   });
 
   it('handles URL object input', async () => {
+    const { interceptFetch } = await import('../intercept');
     const onRequest = vi.fn();
     const handle = interceptFetch({ onRequest });
 
@@ -133,6 +159,7 @@ describe('interceptFetch', () => {
   });
 
   it('handles Request object input', async () => {
+    const { interceptFetch } = await import('../intercept');
     const onRequest = vi.fn();
     const handle = interceptFetch({ onRequest });
 
@@ -147,7 +174,12 @@ describe('interceptFetch', () => {
 });
 
 describe('interceptXHR', () => {
-  it('calls onRequest when xhr.open is invoked', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('calls onRequest when xhr.open is invoked', async () => {
+    const { interceptXHR } = await import('../intercept');
     const onRequest = vi.fn();
     const handle = interceptXHR({ onRequest });
 
@@ -162,7 +194,8 @@ describe('interceptXHR', () => {
     handle.restore();
   });
 
-  it('calls onResponse with parsed JSON on load', () => {
+  it('calls onResponse with parsed JSON on load', async () => {
+    const { interceptXHR } = await import('../intercept');
     const onResponse = vi.fn();
     const handle = interceptXHR({ onResponse });
 
@@ -188,7 +221,8 @@ describe('interceptXHR', () => {
     handle.restore();
   });
 
-  it('calls onResponse with text fallback when JSON parse fails', () => {
+  it('calls onResponse with text fallback when JSON parse fails', async () => {
+    const { interceptXHR } = await import('../intercept');
     const onResponse = vi.fn();
     const handle = interceptXHR({ onResponse });
 
@@ -214,7 +248,8 @@ describe('interceptXHR', () => {
     handle.restore();
   });
 
-  it('returns null body when content-type is not text/json', () => {
+  it('returns null body when content-type is not text/json', async () => {
+    const { interceptXHR } = await import('../intercept');
     const onResponse = vi.fn();
     const handle = interceptXHR({ onResponse });
 
@@ -235,7 +270,8 @@ describe('interceptXHR', () => {
     handle.restore();
   });
 
-  it('handles URL object in xhr.open', () => {
+  it('handles URL object in xhr.open', async () => {
+    const { interceptXHR } = await import('../intercept');
     const onRequest = vi.fn();
     const handle = interceptXHR({ onRequest });
 
@@ -250,19 +286,26 @@ describe('interceptXHR', () => {
     handle.restore();
   });
 
-  it('restore() removes the interceptor and restores XHR when last', () => {
-    // With the centralized registry, XHR is patched once and only restored
-    // when all interceptors are removed. Save the global before any intercept.
-    const savedXHR = window.XMLHttpRequest;
-    const handle = interceptXHR({ onRequest: vi.fn() });
+  it('restore() removes the interceptor callback', async () => {
+    const { interceptXHR } = await import('../intercept');
+    const onRequest = vi.fn();
+    const handle = interceptXHR({ onRequest });
+
+    const xhr1 = new window.XMLHttpRequest();
+    xhr1.open('GET', 'https://example.com/before');
+    expect(onRequest).toHaveBeenCalledTimes(1);
 
     handle.restore();
 
-    // After removing the last interceptor, the original should be restored
-    expect(window.XMLHttpRequest).toBe(savedXHR);
+    // After restore, the callback should not fire
+    onRequest.mockClear();
+    const xhr2 = new window.XMLHttpRequest();
+    xhr2.open('GET', 'https://example.com/after');
+    expect(onRequest).not.toHaveBeenCalled();
   });
 
-  it('works without callbacks', () => {
+  it('works without callbacks', async () => {
+    const { interceptXHR } = await import('../intercept');
     const handle = interceptXHR({});
 
     const xhr = new window.XMLHttpRequest();
@@ -273,11 +316,9 @@ describe('interceptXHR', () => {
 });
 
 describe('Intercept namespace', () => {
-  it('maps interceptFetch correctly', () => {
+  it('maps interceptFetch and interceptXHR correctly', async () => {
+    const { interceptFetch, interceptXHR, Intercept } = await import('../intercept');
     expect(Intercept.interceptFetch).toBe(interceptFetch);
-  });
-
-  it('maps interceptXHR correctly', () => {
     expect(Intercept.interceptXHR).toBe(interceptXHR);
   });
 });

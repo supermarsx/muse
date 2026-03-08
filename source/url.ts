@@ -22,6 +22,9 @@ const patternCache = new Map<string, RegExp>();
 /** @internal Maximum entries in the pattern cache before evicting oldest. */
 const MAX_PATTERN_CACHE_SIZE = 500;
 
+/** @internal Maximum URL length to test against patterns. */
+const MAX_URL_LENGTH = 2048;
+
 /**
  * Tests whether a URL matches a pattern.
  *
@@ -45,6 +48,10 @@ const MAX_PATTERN_CACHE_SIZE = 500;
  */
 export function matchUrl(options: MatchUrlOptions): boolean {
   const url = options.url ?? window.location.href;
+
+  if (url.length > MAX_URL_LENGTH) {
+    return false;
+  }
 
   if (options.pattern instanceof RegExp) {
     return options.pattern.test(url);
@@ -158,13 +165,6 @@ export function onUrlChange(callback: (url: string) => void): NavigationHandle {
   return {
     stop: () => {
       urlChangeCallbacks.delete(callback);
-      // Restore originals when the last listener is removed
-      if (urlChangeCallbacks.size === 0 && historyPatched) {
-        history.pushState = originalPushState;
-        history.replaceState = originalReplaceState;
-        window.removeEventListener('popstate', checkUrlChange);
-        historyPatched = false;
-      }
     },
   };
 }

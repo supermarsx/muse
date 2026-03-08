@@ -13,6 +13,19 @@ import { injectStyle, injectTextHead } from './style';
 import { wrapError } from './utils/errors';
 import { toArray, validateCssSelector } from './utils/dom';
 
+/** @internal Pattern to reject dangerous characters in additionalFilters. */
+const DANGEROUS_FILTER_CHARS = /[{}<>]/;
+
+/**
+ * Validates that a numeric parameter is a finite number.
+ * @internal
+ */
+function validateFiniteNumber(value: number, name: string): void {
+  if (!Number.isFinite(value)) {
+    throw new Error(`Parameter "${name}" must be a finite number, got ${value}.`);
+  }
+}
+
 /**
  * Generates a CSS string for filter-based color inversion.
  * @internal
@@ -23,6 +36,10 @@ function getInversionCss({
   additionalFilters = '',
 }: InvertColorsOptions = {}): string {
   validateCssSelector(tags);
+  validateFiniteNumber(invert, 'invert');
+  if (DANGEROUS_FILTER_CHARS.test(additionalFilters)) {
+    throw new Error('additionalFilters contains invalid characters.');
+  }
   return `
     body { background: white; }
     ${tags} { filter: invert(${invert}) ${additionalFilters}; }
@@ -70,6 +87,7 @@ export function invertColorsAndHueRotate({
   additionalFilters = '',
 }: InvertColorsAndHueRotateOptions = {}): HTMLStyleElement {
   try {
+    validateFiniteNumber(rotation, 'rotation');
     const combinedFilters = `hue-rotate(${rotation}deg) ${additionalFilters}`;
     return invertColors({ invert, tags, additionalFilters: combinedFilters });
   } catch (error: unknown) {

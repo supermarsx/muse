@@ -5,7 +5,6 @@
 
 /** @jsx renderer.create */
 
-import { buttonGoToTopAndBottomHtml } from './html/special.html';
 import { buttonGoToTopAndBottomStyle } from './styles/special.styles';
 import type { ToastInitOptions, ToastMessageOptions } from './types/special.type';
 
@@ -93,7 +92,28 @@ export function showToast({
 export function addGoToTopAndBottomButtons(): HTMLDivElement {
   try {
     const div = document.createElement('div');
-    div.innerHTML = buttonGoToTopAndBottomHtml;
+
+    const topBtn = document.createElement('button');
+    topBtn.className = 'fast-shortcut first-button';
+    topBtn.title = 'Go to top';
+    topBtn.textContent = '\u2191'; // ↑
+    topBtn.addEventListener('click', () => {
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+    });
+
+    const bottomBtn = document.createElement('button');
+    bottomBtn.className = 'fast-shortcut second-button';
+    bottomBtn.title = 'Go to bottom';
+    bottomBtn.textContent = '\u2193'; // ↓
+    bottomBtn.addEventListener('click', () => {
+      document.body.scrollTop = document.body.scrollHeight;
+      document.documentElement.scrollTop = document.body.scrollHeight;
+    });
+
+    div.appendChild(topBtn);
+    div.appendChild(bottomBtn);
+
     injectTextHead({ text: buttonGoToTopAndBottomStyle });
     return document.body.appendChild(div);
   } catch (error: unknown) {

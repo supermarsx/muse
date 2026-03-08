@@ -12,7 +12,9 @@ describe('pollUntil', () => {
 
   it('resolves immediately when condition is already met', async () => {
     const promise = pollUntil(() => 'found', { interval: 50, timeout: 1000 }, 'timeout');
-    vi.advanceTimersByTime(50);
+    // Immediate first check resolves synchronously, but we need to flush
+    // both the pending timeout timer AND the resolved promise microtask
+    await vi.runAllTimersAsync();
     const result = await promise;
     expect(result).toBe('found');
   });
@@ -28,9 +30,9 @@ describe('pollUntil', () => {
       'timeout',
     );
 
-    vi.advanceTimersByTime(100); // counter=1
-    vi.advanceTimersByTime(100); // counter=2
-    vi.advanceTimersByTime(100); // counter=3, resolves
+    // Immediate check: counter=1 (null)
+    await vi.advanceTimersByTimeAsync(100); // counter=2 (null)
+    await vi.advanceTimersByTimeAsync(100); // counter=3, resolves
 
     const result = await promise;
     expect(result).toBe('done');
@@ -39,14 +41,19 @@ describe('pollUntil', () => {
   it('rejects after timeout', async () => {
     const promise = pollUntil(() => null, { interval: 50, timeout: 200 }, 'custom timeout message');
 
-    vi.advanceTimersByTime(250);
+    // Attach the rejection handler BEFORE advancing timers to avoid unhandled rejection
+    const rejection = expect(promise).rejects.toThrow('custom timeout message');
 
-    await expect(promise).rejects.toThrow('custom timeout message');
+    await vi.advanceTimersByTimeAsync(250);
+
+    await rejection;
   });
 
   it('uses default interval and timeout when not specified', async () => {
     const promise = pollUntil(() => 'fast', {}, 'timeout');
-    vi.advanceTimersByTime(50); // default interval
+    // Immediate first check resolves synchronously, but we need to flush
+    // both the pending timeout timer AND the resolved promise microtask
+    await vi.runAllTimersAsync();
     const result = await promise;
     expect(result).toBe('fast');
   });
@@ -65,9 +72,9 @@ describe('pollUntil', () => {
       'timeout',
     );
 
-    vi.advanceTimersByTime(100); // throws
-    vi.advanceTimersByTime(100); // throws
-    vi.advanceTimersByTime(100); // returns 'ready'
+    // Immediate check: counter=1 (throws)
+    await vi.advanceTimersByTimeAsync(100); // counter=2 (throws)
+    await vi.advanceTimersByTimeAsync(100); // counter=3 returns 'ready'
 
     const result = await promise;
     expect(result).toBe('ready');
@@ -84,8 +91,8 @@ describe('pollUntil', () => {
       'timeout',
     );
 
-    vi.advanceTimersByTime(10);
-    vi.advanceTimersByTime(10);
+    // Immediate check: calls=1 (null)
+    await vi.advanceTimersByTimeAsync(10); // calls=2, resolves
 
     const result = await promise;
     expect(result).toBe(42);
@@ -102,8 +109,8 @@ describe('pollUntil', () => {
       'timeout',
     );
 
-    vi.advanceTimersByTime(10);
-    vi.advanceTimersByTime(10);
+    // Immediate check: calls=1 (undefined)
+    await vi.advanceTimersByTimeAsync(10); // calls=2, resolves
 
     const result = await promise;
     expect(result).toBe('found');
