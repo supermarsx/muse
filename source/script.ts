@@ -131,14 +131,13 @@ export function removeExternalScripts(scriptNames: string[]): RemovalResult[] {
     for (const script of scripts) {
       if (!script.src) continue; // skip inline scripts early
       for (const name of scriptNames) {
-        if (!removedSet.has(name) && script.src.includes(name)) {
+        if (script.src.includes(name)) {
           script.remove();
           removedSet.add(name);
-          break;
+          // Don't break — this script may match multiple names,
+          // and other scripts may also match the same name.
         }
       }
-      // All names found — no need to scan remaining scripts
-      if (removedSet.size === scriptNames.length) break;
     }
 
     return scriptNames.map((name) => ({

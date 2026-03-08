@@ -54,12 +54,14 @@ export function matchUrl(options: MatchUrlOptions): boolean {
   }
 
   if (options.pattern instanceof RegExp) {
+    // Reset lastIndex to prevent stateful g/y flag from alternating true/false
+    options.pattern.lastIndex = 0;
     return options.pattern.test(url);
   }
 
   let compiled = patternCache.get(options.pattern);
   if (!compiled) {
-    const escaped = options.pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+    const escaped = options.pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
     compiled = new RegExp(`^${escaped}$`);
     // LRU eviction: remove oldest entry when cache is full
     if (patternCache.size >= MAX_PATTERN_CACHE_SIZE) {

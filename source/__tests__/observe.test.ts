@@ -52,6 +52,36 @@ describe('observeElement', () => {
     );
   });
 
+  it('catches callback errors and logs them without breaking the observer', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+
+    const errorCallback = vi.fn(() => {
+      throw new Error('callback boom');
+    });
+    observeElement({ target: container }, errorCallback);
+
+    const child = document.createElement('span');
+    container.appendChild(child);
+
+    await vi.waitFor(() => {
+      expect(errorCallback).toHaveBeenCalled();
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith('[_muse] observeElement callback error:', expect.any(Error));
+
+    // Observer should still work after the error — add another child
+    const child2 = document.createElement('p');
+    container.appendChild(child2);
+
+    await vi.waitFor(() => {
+      expect(errorCallback).toHaveBeenCalledTimes(2);
+    });
+
+    warnSpy.mockRestore();
+  });
+
   it('stops observation after disconnect', async () => {
     const container = document.createElement('div');
     document.body.appendChild(container);

@@ -53,7 +53,13 @@ export function observeElement(config: ObserveElementOptions, callback: Mutation
     );
   }
 
-  const observer = new MutationObserver(callback);
+  const observer = new MutationObserver((mutations, obs) => {
+    try {
+      callback(mutations, obs);
+    } catch (error: unknown) {
+      console.warn('[_muse] observeElement callback error:', error);
+    }
+  });
   observer.observe(element, config.options ?? { childList: true, subtree: true });
 
   return {
@@ -110,6 +116,9 @@ export function waitForChild(
       return;
     }
 
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
     const cleanup = (): void => {
       observer.disconnect();
       clearTimeout(timer);
@@ -117,21 +126,26 @@ export function waitForChild(
     };
 
     const onAbort = (): void => {
+      if (settled) return;
+      settled = true;
       cleanup();
       reject(new Error('waitForChild aborted.', { cause: signal?.reason }));
     };
 
     const observer = new MutationObserver((mutations) => {
+      if (settled) return;
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
           if (node instanceof Element) {
             if (node.matches(selector)) {
+              settled = true;
               cleanup();
               resolve(node);
               return;
             }
             const nested = node.querySelector(selector);
             if (nested) {
+              settled = true;
               cleanup();
               resolve(nested);
               return;
@@ -147,12 +161,16 @@ export function waitForChild(
     // Double-check after observe to close the race window between initial check and observe
     const afterObserve = parentEl.querySelector(selector);
     if (afterObserve) {
+      if (settled) return;
+      settled = true;
       cleanup();
       resolve(afterObserve);
       return;
     }
 
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
       cleanup();
       reject(new Error(`waitForChild: timed out waiting for "${selector}" inside parent.`));
     }, timeout);

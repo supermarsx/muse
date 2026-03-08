@@ -78,6 +78,9 @@ export function waitForElement({ selector, timeout = 15000, signal }: WaitForEle
       return;
     }
 
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
     const cleanup = (): void => {
       observer.disconnect();
       clearTimeout(timer);
@@ -85,21 +88,26 @@ export function waitForElement({ selector, timeout = 15000, signal }: WaitForEle
     };
 
     const onAbort = (): void => {
+      if (settled) return;
+      settled = true;
       cleanup();
       reject(wrapError('Failed to wait for element.', new Error('Wait aborted.', { cause: signal?.reason })));
     };
 
     const observer = new MutationObserver((mutations) => {
+      if (settled) return;
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
           if (node instanceof Element) {
             if (node.matches(selector)) {
+              settled = true;
               cleanup();
               resolve(node);
               return;
             }
             const nested = node.querySelector(selector);
             if (nested) {
+              settled = true;
               cleanup();
               resolve(nested);
               return;
@@ -123,12 +131,16 @@ export function waitForElement({ selector, timeout = 15000, signal }: WaitForEle
     // Double-check after observe to close the race window between initial check and observe
     const afterObserve = document.querySelector(selector);
     if (afterObserve) {
+      if (settled) return;
+      settled = true;
       cleanup();
       resolve(afterObserve);
       return;
     }
 
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
       cleanup();
       reject(wrapError('Failed to wait for element.', new Error(`Timed out waiting for element: ${selector}`)));
     }, timeout);
@@ -159,6 +171,9 @@ export async function getArrayOfElements(selectors: GetElementOptions[], signal?
  */
 export function queryAll({ selector }: QueryAllOptions): NodeListOf<Element> {
   try {
+    if (!selector) {
+      throw new Error('Selector parameter is empty.');
+    }
     return document.querySelectorAll(selector);
   } catch (error: unknown) {
     throw wrapError('Failed to get element collection from selector.', error);

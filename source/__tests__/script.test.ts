@@ -58,6 +58,12 @@ describe('script', () => {
       expect(() => injectScript({ url: 'data:text/html,<h1>evil</h1>' })).toThrow('Failed to inject script.');
     });
 
+    it('throws when URL uses javascript: scheme with control characters', () => {
+      // Attempt to bypass with tab/newline inside scheme
+      expect(() => injectScript({ url: 'java\tscript:alert(1)' })).toThrow('Failed to inject script.');
+      expect(() => injectScript({ url: 'java\nscript:alert(1)' })).toThrow('Failed to inject script.');
+    });
+
     it('returns a Promise when wait is true', () => {
       const result = injectScript({ text: 'var z = 1;', wait: true });
       expect(result).toBeInstanceOf(Promise);
@@ -105,6 +111,24 @@ describe('script', () => {
 
     it('throws when scriptNames array contains an empty string', () => {
       expect(() => removeExternalScripts(['valid.js', '', 'other.js'])).toThrow('Failed to bulk remove scripts.');
+    });
+
+    it('removes all matching scripts per name, not just the first', () => {
+      // Add two scripts with the same src substring match
+      const s1 = document.createElement('script');
+      s1.src = 'https://cdn.example.com/analytics.js?v=1';
+      document.head.appendChild(s1);
+
+      const s2 = document.createElement('script');
+      s2.src = 'https://cdn.example.com/analytics.js?v=2';
+      document.head.appendChild(s2);
+
+      const results = removeExternalScripts(['analytics.js']);
+      expect(results).toEqual([{ name: 'analytics.js', removed: true }]);
+
+      // Both scripts should be removed
+      const remaining = document.head.querySelectorAll('script[src*="analytics"]');
+      expect(remaining.length).toBe(0);
     });
   });
 

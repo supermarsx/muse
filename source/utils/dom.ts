@@ -33,7 +33,7 @@ export function toArray<T>(value: T | T[]): T[] {
  * @throws If the selector contains `{` or `}` characters.
  */
 /** @internal Characters that could enable CSS injection when interpolated into a rule. */
-const DANGEROUS_SELECTOR_CHARS = /[{}<>\\]/;
+const DANGEROUS_SELECTOR_CHARS = /[{}<>\\;@]/;
 
 /** @internal Block CSS comment sequences that could break context. */
 const CSS_COMMENT_PATTERN = /\/\*/;
@@ -79,7 +79,9 @@ const UNSAFE_URL_SCHEMES = /^(javascript|data|vbscript):/i;
  * @internal
  */
 export function validateUrlScheme(url: string): void {
-  if (UNSAFE_URL_SCHEMES.test(url.trim())) {
+  // Strip control characters (0x00-0x1F, 0x7F) that could bypass scheme detection
+  const sanitized = url.trim().replace(/[\x00-\x1f\x7f]/g, '');
+  if (UNSAFE_URL_SCHEMES.test(sanitized)) {
     throw new Error(`Unsafe URL scheme detected: "${url}".`);
   }
 }
@@ -113,9 +115,16 @@ export function injectElement<T extends HTMLElement>(
     }
 
     return new Promise<Event>((resolve, reject) => {
-      element.onload = (event: Event) => resolve(event);
-      element.onerror = (event) =>
+      element.onload = (event: Event) => {
+        element.onload = null;
+        element.onerror = null;
+        resolve(event);
+      };
+      element.onerror = (event) => {
+        element.onload = null;
+        element.onerror = null;
         reject(new Error(`Resource failed to load: ${errorLabel}`, { cause: event }));
+      };
       target.appendChild(element);
     });
   }

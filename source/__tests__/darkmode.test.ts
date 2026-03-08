@@ -45,6 +45,14 @@ describe('darkmode', () => {
       expect(result.innerHTML).not.toContain('video');
     });
 
+    it('rejects tags containing @ (at-rule injection)', () => {
+      expect(() => invertColors({ tags: '@import url(evil)' })).toThrow('Failed to invert colors.');
+    });
+
+    it('rejects tags containing ; (property termination)', () => {
+      expect(() => invertColors({ tags: '.foo; color: red' })).toThrow('Failed to invert colors.');
+    });
+
     it('applies additionalFilters', () => {
       const result = invertColors({ additionalFilters: 'contrast(0.9)' });
       expect(result.innerHTML).toContain('contrast(0.9)');
@@ -57,9 +65,7 @@ describe('darkmode', () => {
     });
 
     it('rejects additionalFilters containing curly braces', () => {
-      expect(() => invertColors({ additionalFilters: '} .evil { color: red' })).toThrow(
-        'Failed to invert colors.',
-      );
+      expect(() => invertColors({ additionalFilters: '} .evil { color: red' })).toThrow('Failed to invert colors.');
     });
 
     it('rejects additionalFilters containing url() references', () => {
@@ -69,15 +75,15 @@ describe('darkmode', () => {
     });
 
     it('rejects additionalFilters with url( with spaces', () => {
-      expect(() => invertColors({ additionalFilters: 'url  (evil)' })).toThrow(
-        'Failed to invert colors.',
-      );
+      expect(() => invertColors({ additionalFilters: 'url  (evil)' })).toThrow('Failed to invert colors.');
     });
 
     it('rejects additionalFilters with disallowed filter functions', () => {
-      expect(() => invertColors({ additionalFilters: 'expression(alert(1))' })).toThrow(
-        'Failed to invert colors.',
-      );
+      expect(() => invertColors({ additionalFilters: 'expression(alert(1))' })).toThrow('Failed to invert colors.');
+    });
+
+    it('rejects additionalFilters containing CSS comment sequences', () => {
+      expect(() => invertColors({ additionalFilters: 'invert(1) /* comment' })).toThrow('Failed to invert colors.');
     });
 
     it('accepts safe filter functions like blur and contrast', () => {

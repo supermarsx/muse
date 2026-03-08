@@ -65,9 +65,13 @@ function ensureFetchPatched(): void {
   originalFetch = window.fetch.bind(window);
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    // Fast path: no interceptors registered — passthrough directly
+    if (fetchInterceptors.size === 0) {
+      return originalFetch(input, init);
+    }
+
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    const method =
-      init?.method ?? (input instanceof Request ? input.method : 'GET');
+    const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
 
     // Snapshot the Set to avoid mutation during iteration
     const snapshot = [...fetchInterceptors];
@@ -75,9 +79,13 @@ function ensureFetchPatched(): void {
     // Fire onRequest callbacks; if any returns false, block the request
     for (const interceptor of snapshot) {
       if (interceptor.onRequest) {
-        const result = interceptor.onRequest({ url, method });
-        if (result === false) {
-          return new Response(null, { status: 403, statusText: 'Blocked by interceptor' });
+        try {
+          const result = interceptor.onRequest({ url, method });
+          if (result === false) {
+            return new Response(null, { status: 403, statusText: 'Blocked by interceptor' });
+          }
+        } catch (error: unknown) {
+          console.warn('[_muse] Fetch request interceptor error:', error);
         }
       }
     }
@@ -94,11 +102,17 @@ function ensureFetchPatched(): void {
     }
     if (hasResponseInterceptor) {
       const clone = response.clone();
-      // Only read body for text/json content types to avoid consuming large binary responses
+      // Only read body for text/json content types below size threshold
+      // to avoid consuming large binary or streaming responses
+      const MAX_RESPONSE_BODY_SIZE = 5 * 1024 * 1024; // 5 MB
       void (async () => {
         let body: unknown = null;
         const contentType = clone.headers.get('content-type') ?? '';
-        if (contentType.includes('json') || contentType.includes('text')) {
+        const contentLength = parseInt(clone.headers.get('content-length') ?? '0', 10);
+        if (
+          (contentType.includes('json') || contentType.includes('text')) &&
+          (contentLength === 0 || contentLength <= MAX_RESPONSE_BODY_SIZE)
+        ) {
           try {
             const text = await clone.text();
             try {
@@ -192,14 +206,17 @@ function ensureXHRPatched(): void {
       capturedMethod = method;
       capturedUrl = typeof url === 'string' ? url : url.href;
 
-      // Snapshot the Set to avoid mutation during iteration
-      const snapshot = [...xhrInterceptors];
-      for (const interceptor of snapshot) {
-        if (interceptor.onRequest) {
-          try {
-            interceptor.onRequest({ url: capturedUrl, method: capturedMethod });
-          } catch (error: unknown) {
-            console.warn('[_muse] XHR request interceptor error:', error);
+      // Only run interceptors if there are any registered
+      if (xhrInterceptors.size > 0) {
+        // Snapshot the Set to avoid mutation during iteration
+        const snapshot = [...xhrInterceptors];
+        for (const interceptor of snapshot) {
+          if (interceptor.onRequest) {
+            try {
+              interceptor.onRequest({ url: capturedUrl, method: capturedMethod });
+            } catch (error: unknown) {
+              console.warn('[_muse] XHR request interceptor error:', error);
+            }
           }
         }
       }
@@ -246,7 +263,7 @@ function ensureXHRPatched(): void {
     return xhr;
   } as unknown as typeof XMLHttpRequest;
 
-  PatchedXHR.prototype = OriginalXHR.prototype;
+  PatchedXHR.prototype = Object.create(OriginalXHR.prototype);
   Object.defineProperty(PatchedXHR, 'UNSENT', { value: 0 });
   Object.defineProperty(PatchedXHR, 'OPENED', { value: 1 });
   Object.defineProperty(PatchedXHR, 'HEADERS_RECEIVED', { value: 2 });

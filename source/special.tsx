@@ -28,15 +28,16 @@ export function initToast({ position = 'bottom-left', gutter = 8 }: ToastInitOpt
   if (!document.body) {
     throw new Error('Cannot initialize toast: document.body is not available.');
   }
-  toastInitialized = true;
   const renderer = new CommonDOMRenderer();
-  return renderer
+  renderer
     .render(
       <div>
         <Toaster position={position} gutter={gutter} />
       </div>,
     )
     .on(document.body);
+  // Set flag after successful render — allows retry if render throws
+  toastInitialized = true;
 }
 
 /**
@@ -103,7 +104,6 @@ export function addGoToTopAndBottomButtons(): HTMLDivElement {
     if (!document.body) {
       throw new Error('Cannot add buttons: document.body is not available.');
     }
-    buttonsInitialized = true;
 
     const div = document.createElement('div');
 
@@ -127,7 +127,10 @@ export function addGoToTopAndBottomButtons(): HTMLDivElement {
     div.appendChild(bottomBtn);
 
     injectTextHead({ text: buttonGoToTopAndBottomStyle });
-    return document.body.appendChild(div);
+    const result = document.body.appendChild(div);
+    // Set flag after successful DOM operations — allows retry if any step throws
+    buttonsInitialized = true;
+    return result;
   } catch (error: unknown) {
     throw wrapError('Failed to add go-to-top and go-to-bottom buttons.', error);
   }

@@ -169,6 +169,44 @@ describe('url', () => {
       });
       expect(result).toBe(true);
     });
+
+    it('escapes ? in glob patterns so URL query strings match literally', async () => {
+      const { matchUrl } = await import('../url');
+      const result = matchUrl({
+        pattern: 'https://example.com/path?param=1',
+        url: 'https://example.com/path?param=1',
+      });
+      expect(result).toBe(true);
+
+      // Without escaping ?, 'path' would be optional, matching 'pat'
+      const mismatch = matchUrl({
+        pattern: 'https://example.com/path?param=1',
+        url: 'https://example.com/patparam=1',
+      });
+      expect(mismatch).toBe(false);
+    });
+  });
+
+  describe('matchUrl RegExp lastIndex', () => {
+    it('produces consistent results with a global RegExp (no alternating)', async () => {
+      const { matchUrl } = await import('../url');
+      const pattern = /example/g;
+      const url = 'https://example.com';
+
+      // Without lastIndex reset, repeated calls would alternate true/false
+      expect(matchUrl({ pattern, url })).toBe(true);
+      expect(matchUrl({ pattern, url })).toBe(true);
+      expect(matchUrl({ pattern, url })).toBe(true);
+    });
+
+    it('produces consistent results with a sticky RegExp', async () => {
+      const { matchUrl } = await import('../url');
+      const pattern = /https/y;
+      const url = 'https://example.com';
+
+      expect(matchUrl({ pattern, url })).toBe(true);
+      expect(matchUrl({ pattern, url })).toBe(true);
+    });
   });
 
   describe('Url namespace', () => {

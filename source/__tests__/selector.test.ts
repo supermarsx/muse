@@ -91,6 +91,10 @@ describe('selector', () => {
       const result = queryAll({ selector: '.nonexistent' });
       expect(result.length).toBe(0);
     });
+
+    it('throws when selector is empty', () => {
+      expect(() => queryAll({ selector: '' })).toThrow('Failed to get element collection from selector.');
+    });
   });
 
   describe('getAllScripts', () => {

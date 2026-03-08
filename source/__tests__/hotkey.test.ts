@@ -229,6 +229,22 @@ describe('hotkey', () => {
 
       expect(handler).not.toHaveBeenCalled();
     });
+
+    it('is idempotent — calling unregister multiple times does not throw', () => {
+      const handler = vi.fn();
+      const handle = registerHotkey({
+        key: 'q',
+        handler,
+      });
+
+      // Should not throw on repeated calls
+      handle.unregister();
+      handle.unregister();
+      handle.unregister();
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'q' }));
+      expect(handler).not.toHaveBeenCalled();
+    });
   });
 
   describe('Hotkey namespace', () => {

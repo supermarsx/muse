@@ -105,9 +105,9 @@ describe('interceptFetch', () => {
   });
 
   it('falls back to text body when JSON parse fails', async () => {
-    const textFetch = vi.fn().mockResolvedValue(
-      new Response('plain text', { status: 200, headers: { 'Content-Type': 'text/plain' } }),
-    );
+    const textFetch = vi
+      .fn()
+      .mockResolvedValue(new Response('plain text', { status: 200, headers: { 'Content-Type': 'text/plain' } }));
     window.fetch = textFetch;
 
     const { interceptFetch } = await import('../intercept');
@@ -204,6 +204,25 @@ describe('interceptFetch', () => {
 
     // Cleanup
     for (const h of handles) h.restore();
+  });
+
+  it('catches onRequest errors and continues to fetch', async () => {
+    const { interceptFetch } = await import('../intercept');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onRequest = vi.fn(() => {
+      throw new Error('onRequest boom');
+    });
+    const handle = interceptFetch({ onRequest });
+
+    const response = await window.fetch('https://example.com/continue');
+
+    expect(onRequest).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith('[_muse] Fetch request interceptor error:', expect.any(Error));
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(200);
+
+    handle.restore();
+    warnSpy.mockRestore();
   });
 });
 
@@ -348,9 +367,7 @@ describe('interceptXHR', () => {
     }
 
     // The 101st should throw
-    expect(() => interceptXHR({ onRequest: () => {} })).toThrow(
-      'Maximum number of XHR interceptors (100) reached.',
-    );
+    expect(() => interceptXHR({ onRequest: () => {} })).toThrow('Maximum number of XHR interceptors (100) reached.');
 
     // Cleanup
     for (const h of handles) h.restore();

@@ -132,8 +132,11 @@ export function registerHotkeys(bindings: HotkeyBinding[]): HotkeyHandle {
     hotkeyBindings.add(nb);
   }
 
+  let unregistered = false;
   return {
     unregister: () => {
+      if (unregistered) return;
+      unregistered = true;
       for (const nb of normalizedBindings) {
         hotkeyBindings.delete(nb);
       }
@@ -175,10 +178,7 @@ export function registerHotkey(binding: HotkeyBinding): HotkeyHandle {
  * const handle = registerHotkeys([binding]);
  * ```
  */
-export function parseHotkey(
-  shortcut: string,
-  handler: (event: KeyboardEvent) => void,
-): HotkeyBinding {
+export function parseHotkey(shortcut: string, handler: (event: KeyboardEvent) => void): HotkeyBinding {
   const parts = shortcut.split('+').map((s) => s.trim());
   const modifiers: HotkeyModifiers = {};
   let key = '';

@@ -45,10 +45,13 @@ function validateAdditionalFilters(filters: string): void {
   if (DANGEROUS_FILTER_CHARS.test(filters) || DANGEROUS_FILTER_URL.test(filters)) {
     throw new Error('additionalFilters contains invalid characters or url() references.');
   }
+  // Block CSS comment sequences that could break out of filter context
+  if (/\/\*/.test(filters)) {
+    throw new Error('additionalFilters contains disallowed CSS comment sequence.');
+  }
   // Check that all function calls use allowed filter names
-  let match: RegExpExecArray | null;
-  FILTER_FUNCTION_NAMES.lastIndex = 0;
-  while ((match = FILTER_FUNCTION_NAMES.exec(filters)) !== null) {
+  // Use matchAll to avoid shared mutable lastIndex state on the global regex
+  for (const match of filters.matchAll(FILTER_FUNCTION_NAMES)) {
     if (!SAFE_FILTER_FUNCTIONS.has(match[1].toLowerCase())) {
       throw new Error(`additionalFilters contains disallowed function: "${match[1]}".`);
     }
