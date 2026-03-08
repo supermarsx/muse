@@ -43,8 +43,8 @@ export type InlineStyleResult = Promise<Element> | Element;
 export interface GenericStyleMethodOptions {
   /** A single CSS selector or array of selectors. */
   selectorOrArrayOfSelectors: string | string[];
-  /** The method name or number to use. */
-  method?: string | number;
+  /** The hiding method to use. */
+  method?: HidingMethod;
   /** If true, applies as inline styles instead of injected stylesheets. */
   inline?: boolean;
   /** If true, waits for elements to appear before applying. */

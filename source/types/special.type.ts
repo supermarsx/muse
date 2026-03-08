@@ -10,9 +10,9 @@ import type { Renderable, ToastOptions, ToastPosition, ValueOrFunction } from 's
  */
 export interface ToastInitOptions {
   /** Position of the toast container. @defaultValue 'bottom-left' */
-  position: ToastPosition;
+  position?: ToastPosition | undefined;
   /** Gap between toasts in pixels. @defaultValue 8 */
-  gutter: number;
+  gutter?: number | undefined;
 }
 
 /** Supported toast message types. */
