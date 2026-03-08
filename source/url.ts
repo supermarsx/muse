@@ -14,11 +14,17 @@ export interface MatchUrlOptions {
 }
 
 /**
+ * Cache for compiled glob-to-regex patterns.
+ * @internal
+ */
+const patternCache = new Map<string, RegExp>();
+
+/**
  * Tests whether a URL matches a pattern.
  *
  * - If `pattern` is a `RegExp`, it's tested directly.
  * - If `pattern` is a string, it's treated as a glob-like pattern where `*`
- *   matches any sequence of characters.
+ *   matches any sequence of characters. Compiled patterns are cached for reuse.
  *
  * @param options - Match options.
  * @returns `true` if the URL matches the pattern.
@@ -41,11 +47,15 @@ export function matchUrl(options: MatchUrlOptions): boolean {
     return options.pattern.test(url);
   }
 
-  // Convert glob-like pattern to RegExp
-  const escaped = options.pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '.*');
-  return new RegExp(`^${escaped}$`).test(url);
+  let compiled = patternCache.get(options.pattern);
+  if (!compiled) {
+    const escaped = options.pattern
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*');
+    compiled = new RegExp(`^${escaped}$`);
+    patternCache.set(options.pattern, compiled);
+  }
+  return compiled.test(url);
 }
 
 /**
@@ -56,9 +66,64 @@ export interface NavigationHandle {
   stop(): void;
 }
 
+// --- Centralized history patch registry ---
+const urlChangeCallbacks = new Set<(url: string) => void>();
+let historyPatched = false;
+let originalPushState: typeof history.pushState;
+let originalReplaceState: typeof history.replaceState;
+let lastUrl = '';
+let checking = false;
+
+/** @internal Shared check function for all URL change listeners. */
+function checkUrlChange(): void {
+  if (checking) return; // reentrancy guard
+  checking = true;
+  try {
+    const current = window.location.href;
+    if (current !== lastUrl) {
+      lastUrl = current;
+      for (const cb of urlChangeCallbacks) {
+        try {
+          cb(current);
+        } catch {
+          // Don't let one callback break others
+        }
+      }
+    }
+  } finally {
+    checking = false;
+  }
+}
+
+/** @internal Patches history methods exactly once. */
+function ensureHistoryPatched(): void {
+  if (historyPatched) return;
+  historyPatched = true;
+  lastUrl = window.location.href;
+
+  originalPushState = history.pushState.bind(history);
+  originalReplaceState = history.replaceState.bind(history);
+
+  history.pushState = function (...args: Parameters<typeof history.pushState>) {
+    originalPushState(...args);
+    checkUrlChange();
+  };
+
+  history.replaceState = function (...args: Parameters<typeof history.replaceState>) {
+    originalReplaceState(...args);
+    checkUrlChange();
+  };
+
+  window.addEventListener('popstate', checkUrlChange);
+}
+
 /**
  * Watches for SPA-style navigation changes (pushState, replaceState, popstate).
  * Calls the callback whenever the URL changes.
+ *
+ * Multiple calls share a single set of history patches, avoiding the stacking
+ * problem where each call wraps the previous wrapper. Calling `stop()` safely
+ * removes only the registered callback.
  *
  * @param callback - Invoked with the new URL string on each navigation.
  * @returns A {@link NavigationHandle} to stop watching.
@@ -77,38 +142,19 @@ export interface NavigationHandle {
  * ```
  */
 export function onUrlChange(callback: (url: string) => void): NavigationHandle {
-  let lastUrl = window.location.href;
-
-  const check = (): void => {
-    const current = window.location.href;
-    if (current !== lastUrl) {
-      lastUrl = current;
-      callback(current);
-    }
-  };
-
-  // Patch pushState and replaceState
-  const originalPushState = history.pushState.bind(history);
-  const originalReplaceState = history.replaceState.bind(history);
-
-  history.pushState = function (...args: Parameters<typeof history.pushState>) {
-    originalPushState(...args);
-    check();
-  };
-
-  history.replaceState = function (...args: Parameters<typeof history.replaceState>) {
-    originalReplaceState(...args);
-    check();
-  };
-
-  // Listen for popstate (back/forward)
-  window.addEventListener('popstate', check);
+  ensureHistoryPatched();
+  urlChangeCallbacks.add(callback);
 
   return {
     stop: () => {
-      history.pushState = originalPushState;
-      history.replaceState = originalReplaceState;
-      window.removeEventListener('popstate', check);
+      urlChangeCallbacks.delete(callback);
+      // Restore originals when the last listener is removed
+      if (urlChangeCallbacks.size === 0 && historyPatched) {
+        history.pushState = originalPushState;
+        history.replaceState = originalReplaceState;
+        window.removeEventListener('popstate', checkUrlChange);
+        historyPatched = false;
+      }
     },
   };
 }
@@ -128,11 +174,7 @@ export function onUrlChange(callback: (url: string) => void): NavigationHandle {
  */
 export function getUrlParams(url?: string): Record<string, string> {
   const searchParams = new URL(url ?? window.location.href).searchParams;
-  const result: Record<string, string> = {};
-  searchParams.forEach((value, key) => {
-    result[key] = value;
-  });
-  return result;
+  return Object.fromEntries(searchParams.entries());
 }
 
 /**
