@@ -1,23 +1,103 @@
 {
-    "name": "muse",
-    "fullName": "_muse",
-    "version": "24.7.1",
-    "description": "_muse, master userscript extended",
-    "scripts": {
-        "start": "npm run server-build-watch",
-        "build": "webpack",
-        "build-watch": "webpack --watch --progress",
-        "server-build-watch": "webpack serve --progress"
+  "name": "@muse/userscript",
+  "version": "2.0.0",
+  "description": "_muse - Master Userscript Extended. A utility library for browser userscripts providing DOM manipulation, style injection, dark mode, element cloning, and event handling.",
+  "author": "supermarsx",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/supermarsx/muse.git"
+  },
+  "homepage": "https://github.com/supermarsx/muse#readme",
+  "bugs": {
+    "url": "https://github.com/supermarsx/muse/issues"
+  },
+  "keywords": [
+    "userscript",
+    "greasemonkey",
+    "tampermonkey",
+    "violentmonkey",
+    "dom",
+    "darkmode",
+    "utility",
+    "library"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
     },
-    "dependencies": {
-        "render-jsx": "^0.2.4",
-        "solid-toast": "^0.5.0",
-        "ts-loader": "^9.5.1"
+    "./global": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/global/_muse.js"
     },
-    "devDependencies": {
-        "glob": "^11.0.0",
-        "webpack-cli": "^5.1.4",
-        "webpack-dev-server": "^5.0.4",
-        "webpack-shell-plugin-next": "^2.3.1"
+    "./global/min": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/global/_muse.min.js"
     }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "readme.md"
+  ],
+  "scripts": {
+    "build": "npm run build:lib && npm run build:global",
+    "build:lib": "npm run build:esm & npm run build:cjs & npm run build:types",
+    "build:esm": "tsc --project tsconfig.esm.json",
+    "build:cjs": "tsc --project tsconfig.cjs.json",
+    "build:types": "tsc --project tsconfig.types.json",
+    "build:global": "webpack --config webpack.config.cjs",
+    "dev": "webpack serve --config webpack.config.cjs --mode development --progress",
+    "dev:watch": "webpack --config webpack.config.cjs --mode development --watch --progress",
+    "lint": "eslint source/",
+    "lint:fix": "eslint source/ --fix",
+    "format": "prettier --write \"source/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"source/**/*.{ts,tsx}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run clean && npm run build && npm run test"
+  },
+  "peerDependencies": {
+    "render-jsx": "^0.2.4",
+    "solid-toast": "^0.5.0"
+  },
+  "peerDependenciesMeta": {
+    "render-jsx": {
+      "optional": true
+    },
+    "solid-toast": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "eslint": "^9.0.0",
+    "happy-dom": "^15.0.0",
+    "prettier": "^3.3.0",
+    "render-jsx": "^0.2.4",
+    "rimraf": "^6.0.0",
+    "solid-toast": "^0.5.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^2.0.0",
+    "webpack": "^5.90.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.0.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
