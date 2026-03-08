@@ -11,7 +11,7 @@ import type {
 import { pollUntil } from './utils/polling';
 import { getAllScripts } from './selector';
 import { wrapError } from './utils/errors';
-import { win } from './utils/window';
+import { win, validatePropertyKey } from './utils/window';
 
 /**
  * Waits for a top-level function to exist on `window`.
@@ -29,6 +29,7 @@ import { win } from './utils/window';
  * ```
  */
 export function waitForFunction({ propertyName, interval, timeout, signal }: WaitForFunctionOptions): Promise<void> {
+  validatePropertyKey(propertyName);
   return pollUntil(
     () => {
       const value = win[propertyName];
@@ -62,6 +63,8 @@ export function waitForNestedFunction({
   timeout,
   signal,
 }: WaitForNestedFunctionOptions): Promise<(...args: unknown[]) => unknown> {
+  validatePropertyKey(firstLevel);
+  validatePropertyKey(secondLevel);
   return pollUntil(
     () => {
       const parent = win[firstLevel];
@@ -77,7 +80,7 @@ export function waitForNestedFunction({
 }
 
 /** @internal Regex to match function call patterns in script contents. */
-const FUNCTION_CALL_REGEX = /(((\w|\.)+)\((([^)]*)\);*))/g;
+const FUNCTION_CALL_REGEX = /(([\w.]+)\(([^)]*)\);*)/g;
 
 /**
  * Scans all inline `<script>` elements and extracts function call signatures
@@ -92,8 +95,7 @@ export function getFunctionList(): RegExpMatchArray[] {
 
     for (const script of scripts) {
       const contents = script.innerHTML;
-      const matches = Array.from(contents.matchAll(FUNCTION_CALL_REGEX));
-      for (const match of matches) {
+      for (const match of contents.matchAll(FUNCTION_CALL_REGEX)) {
         results.push(match);
       }
     }
@@ -121,7 +123,7 @@ export function getOriginalParameters({ functionName }: GetOriginalParametersOpt
       for (const match of contents.matchAll(FUNCTION_CALL_REGEX)) {
         const currentScript = match[2];
         if (currentScript?.includes(functionName)) {
-          const params = match[5];
+          const params = match[3];
           if (!params || params.trim() === '') return [];
           return params.split(',').map((p) => p.trim());
         }

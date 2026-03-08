@@ -46,7 +46,7 @@ export function injectScript({ url = '', text = '', location = 'head', wait = fa
     if (url) {
       scriptElement.src = url;
     } else {
-      scriptElement.innerHTML = text;
+      scriptElement.textContent = text;
     }
 
     const target = getInjectionTarget(location);
@@ -88,14 +88,14 @@ export function injectScriptUrls(urls: string[]): Promise<Array<HTMLScriptElemen
  */
 export function removeExternalScript(scriptName: string): boolean {
   try {
-    const scripts = getAllScripts();
+    const scripts = Array.from(getAllScripts());
     let removed = false;
-    scripts.forEach((script) => {
+    for (const script of scripts) {
       if (script.src.includes(scriptName)) {
-        script.parentNode?.removeChild(script);
+        script.remove();
         removed = true;
       }
-    });
+    }
     return removed;
   } catch (error: unknown) {
     throw wrapError(`Failed to remove script "${scriptName}".`, error);
@@ -110,18 +110,19 @@ export function removeExternalScript(scriptName: string): boolean {
  */
 export function removeExternalScripts(scriptNames: string[]): RemovalResult[] {
   try {
-    const scripts = getAllScripts();
+    const scripts = Array.from(getAllScripts());
     const removedSet = new Set<string>();
 
-    scripts.forEach((script) => {
+    for (const script of scripts) {
+      if (!script.src) continue; // skip inline scripts early
       for (const name of scriptNames) {
         if (!removedSet.has(name) && script.src.includes(name)) {
-          script.parentNode?.removeChild(script);
+          script.remove();
           removedSet.add(name);
           break;
         }
       }
-    });
+    }
 
     return scriptNames.map((name) => ({
       name,

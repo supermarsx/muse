@@ -40,7 +40,40 @@ export interface HotkeyHandle {
 }
 
 /**
+ * Internal normalized binding with pre-lowercased key.
+ * @internal
+ */
+interface NormalizedBinding extends HotkeyBinding {
+  _lowerKey: string;
+}
+
+// --- Centralized hotkey listener registry ---
+const hotkeyBindings = new Set<NormalizedBinding>();
+let hotkeyListenerAttached = false;
+
+/** @internal Attaches a single shared keydown listener. */
+function ensureHotkeyListener(): void {
+  if (hotkeyListenerAttached) return;
+  hotkeyListenerAttached = true;
+
+  document.addEventListener('keydown', (event: KeyboardEvent) => {
+    const eventKey = event.key.toLowerCase();
+    for (const binding of hotkeyBindings) {
+      if (eventKey === binding._lowerKey && matchesModifiers(event, binding)) {
+        if (binding.preventDefault !== false) {
+          event.preventDefault();
+        }
+        binding.handler(event);
+      }
+    }
+  });
+}
+
+/**
  * Registers one or more keyboard shortcuts on the document.
+ *
+ * Multiple calls share a single `keydown` listener, avoiding the overhead
+ * of attaching separate listeners for each registration.
  *
  * @param bindings - One or more hotkey binding definitions.
  * @returns A {@link HotkeyHandle} to unregister all bindings.
@@ -64,28 +97,24 @@ export interface HotkeyHandle {
  * ```
  */
 export function registerHotkeys(bindings: HotkeyBinding[]): HotkeyHandle {
+  ensureHotkeyListener();
+
   // Pre-normalize keys to avoid repeated toLowerCase() on every keydown
-  const normalizedBindings = bindings.map((b) => ({
+  const normalizedBindings: NormalizedBinding[] = bindings.map((b) => ({
     ...b,
     _lowerKey: b.key.toLowerCase(),
   }));
 
-  const listener = (event: KeyboardEvent): void => {
-    const eventKey = event.key.toLowerCase();
-    for (const binding of normalizedBindings) {
-      if (eventKey === binding._lowerKey && matchesModifiers(event, binding)) {
-        if (binding.preventDefault !== false) {
-          event.preventDefault();
-        }
-        binding.handler(event);
-      }
-    }
-  };
-
-  document.addEventListener('keydown', listener);
+  for (const nb of normalizedBindings) {
+    hotkeyBindings.add(nb);
+  }
 
   return {
-    unregister: () => document.removeEventListener('keydown', listener),
+    unregister: () => {
+      for (const nb of normalizedBindings) {
+        hotkeyBindings.delete(nb);
+      }
+    },
   };
 }
 

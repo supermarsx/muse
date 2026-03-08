@@ -11,7 +11,7 @@ import type {
 } from './types/darkmode.type';
 import { injectStyle, injectTextHead } from './style';
 import { wrapError } from './utils/errors';
-import { toArray } from './utils/dom';
+import { toArray, validateCssSelector } from './utils/dom';
 
 /**
  * Generates a CSS string for filter-based color inversion.
@@ -22,6 +22,7 @@ function getInversionCss({
   tags = 'html, img, video, iframe',
   additionalFilters = '',
 }: InvertColorsOptions = {}): string {
+  validateCssSelector(tags);
   return `
     body { background: white; }
     ${tags} { filter: invert(${invert}) ${additionalFilters}; }
@@ -110,6 +111,7 @@ export function presetInvertAltTagsContrast85(): HTMLStyleElement {
  * @internal
  */
 function getElementDarkmodeCss(selector: string, method: DarkmodeMethod): string {
+  validateCssSelector(selector);
   switch (method) {
     case 1:
       return `
@@ -144,12 +146,11 @@ function applyElementDarkmode(
 ): HTMLStyleElement | HTMLStyleElement[] {
   const selectors = toArray(selectorOrArrayOfSelectors);
 
-  const results = selectors.map((selector) => {
-    const text = getElementDarkmodeCss(selector, method);
-    return injectTextHead({ text });
-  });
+  // Batch all CSS into a single <style> element to avoid N style recalculations
+  const combinedCss = selectors.map((selector) => getElementDarkmodeCss(selector, method)).join('\n');
+  const singleStyle = injectTextHead({ text: combinedCss });
 
-  return Array.isArray(selectorOrArrayOfSelectors) ? results : results[0];
+  return Array.isArray(selectorOrArrayOfSelectors) ? selectors.map(() => singleStyle) : singleStyle;
 }
 
 /**

@@ -14,10 +14,13 @@ export interface MatchUrlOptions {
 }
 
 /**
- * Cache for compiled glob-to-regex patterns.
+ * Cache for compiled glob-to-regex patterns with LRU eviction.
  * @internal
  */
 const patternCache = new Map<string, RegExp>();
+
+/** @internal Maximum entries in the pattern cache before evicting oldest. */
+const MAX_PATTERN_CACHE_SIZE = 500;
 
 /**
  * Tests whether a URL matches a pattern.
@@ -51,8 +54,15 @@ export function matchUrl(options: MatchUrlOptions): boolean {
   if (!compiled) {
     const escaped = options.pattern
       .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '.*');
+      .replace(/\*/g, '[^\\s]*');
     compiled = new RegExp(`^${escaped}$`);
+    // LRU eviction: remove oldest entry when cache is full
+    if (patternCache.size >= MAX_PATTERN_CACHE_SIZE) {
+      const firstKey = patternCache.keys().next().value;
+      if (firstKey !== undefined) {
+        patternCache.delete(firstKey);
+      }
+    }
     patternCache.set(options.pattern, compiled);
   }
   return compiled.test(url);
@@ -114,7 +124,7 @@ function ensureHistoryPatched(): void {
     checkUrlChange();
   };
 
-  window.addEventListener('popstate', checkUrlChange);
+  window.addEventListener('popstate', checkUrlChange, { passive: true });
 }
 
 /**
@@ -173,8 +183,12 @@ export function onUrlChange(callback: (url: string) => void): NavigationHandle {
  * ```
  */
 export function getUrlParams(url?: string): Record<string, string> {
-  const searchParams = new URL(url ?? window.location.href).searchParams;
-  return Object.fromEntries(searchParams.entries());
+  try {
+    const searchParams = new URL(url ?? window.location.href).searchParams;
+    return Object.fromEntries(searchParams.entries());
+  } catch (error: unknown) {
+    throw new Error(`Invalid URL: "${url ?? ''}"`, { cause: error });
+  }
 }
 
 /**

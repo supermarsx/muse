@@ -78,8 +78,14 @@ function ensureFetchPatched(): void {
     const response = await originalFetch(input, init);
 
     // Fire onResponse callbacks asynchronously to avoid blocking the caller
-    const respondInterceptors = [...fetchInterceptors].filter((i) => i.onResponse);
-    if (respondInterceptors.length > 0) {
+    let hasResponseInterceptor = false;
+    for (const interceptor of fetchInterceptors) {
+      if (interceptor.onResponse) {
+        hasResponseInterceptor = true;
+        break;
+      }
+    }
+    if (hasResponseInterceptor) {
       const clone = response.clone();
       // Only read body for text/json content types to avoid consuming large binary responses
       void (async () => {
@@ -98,11 +104,13 @@ function ensureFetchPatched(): void {
           }
         }
         const info: InterceptedResponse = { url, status: response.status, body };
-        for (const interceptor of respondInterceptors) {
-          try {
-            interceptor.onResponse!(info);
-          } catch {
-            // Don't let one interceptor break others
+        for (const interceptor of fetchInterceptors) {
+          if (interceptor.onResponse) {
+            try {
+              interceptor.onResponse(info);
+            } catch {
+              // Don't let one interceptor break others
+            }
           }
         }
       })();
@@ -186,10 +194,16 @@ function ensureXHRPatched(): void {
       return (originalOpen as Function).call(xhr, method, url, ...rest);
     } as typeof xhr.open;
 
-    // Only attach load listener if there are response interceptors
+    // Only process response if there are response interceptors
     xhr.addEventListener('load', () => {
-      const respondInterceptors = [...xhrInterceptors].filter((i) => i.onResponse);
-      if (respondInterceptors.length === 0) return;
+      let hasResponseInterceptor = false;
+      for (const interceptor of xhrInterceptors) {
+        if (interceptor.onResponse) {
+          hasResponseInterceptor = true;
+          break;
+        }
+      }
+      if (!hasResponseInterceptor) return;
 
       let body: unknown = null;
       const contentType = xhr.getResponseHeader('content-type') ?? '';
@@ -202,11 +216,13 @@ function ensureXHRPatched(): void {
       }
 
       const info: InterceptedResponse = { url: capturedUrl, status: xhr.status, body };
-      for (const interceptor of respondInterceptors) {
-        try {
-          interceptor.onResponse!(info);
-        } catch {
-          // Don't let one interceptor break others
+      for (const interceptor of xhrInterceptors) {
+        if (interceptor.onResponse) {
+          try {
+            interceptor.onResponse(info);
+          } catch {
+            // Don't let one interceptor break others
+          }
         }
       }
     });

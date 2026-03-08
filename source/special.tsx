@@ -14,6 +14,9 @@ import toast, { Toaster } from 'solid-toast';
 import { CommonDOMRenderer } from 'render-jsx/dom';
 import { wrapError } from './utils/errors';
 
+/** @internal Guard against double-initialization of the toast container. */
+let toastInitialized = false;
+
 /**
  * Initializes the toast notification system by rendering the Toaster component.
  *
@@ -22,6 +25,8 @@ import { wrapError } from './utils/errors';
  * @param options.gutter - Gap between toasts in pixels. @defaultValue 8
  */
 export function initToast({ position = 'bottom-left', gutter = 8 }: ToastInitOptions): void {
+  if (toastInitialized) return;
+  toastInitialized = true;
   const renderer = new CommonDOMRenderer();
   return renderer
     .render(

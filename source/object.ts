@@ -6,7 +6,7 @@
 
 import type { WaitForObjectOptions, WaitForNestedObjectOptions } from './types/object.type';
 import { pollUntil } from './utils/polling';
-import { win } from './utils/window';
+import { win, validatePropertyKey } from './utils/window';
 
 /**
  * Waits for a top-level property on `window` to exist and be an Object.
@@ -23,6 +23,7 @@ import { win } from './utils/window';
  * ```
  */
 export function waitForObject({ propertyName, interval, timeout, signal }: WaitForObjectOptions): Promise<object> {
+  validatePropertyKey(propertyName);
   return pollUntil<object>(
     () => {
       const value = win[propertyName];
@@ -55,6 +56,8 @@ export function waitForNestedObject({
   timeout,
   signal,
 }: WaitForNestedObjectOptions): Promise<object> {
+  validatePropertyKey(firstLevel);
+  validatePropertyKey(secondLevel);
   return pollUntil<object>(
     () => {
       const parent = win[firstLevel];

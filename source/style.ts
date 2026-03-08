@@ -17,7 +17,7 @@ import type {
 } from './types/style.type';
 import { getElement, getAllStyles } from './selector';
 import { wrapError } from './utils/errors';
-import { validateLocation, getInjectionTarget, injectElement, injectArray, toArray } from './utils/dom';
+import { validateLocation, getInjectionTarget, injectElement, injectArray, toArray, validateCssSelector } from './utils/dom';
 
 /**
  * Injects a stylesheet from a URL or inline CSS text into the DOM.
@@ -61,7 +61,7 @@ export function injectStyle({ url = '', text = '', location = 'head', wait = fal
       element = linkElement;
     } else {
       const styleElement = document.createElement('style');
-      styleElement.innerHTML = text;
+      styleElement.textContent = text;
       element = styleElement;
     }
 
@@ -119,14 +119,14 @@ export function injectTextHead({ text = '' }: InjectTextHeadOptions = {}): HTMLS
  */
 export function removeExternalStyle({ styleName }: RemoveExternalStyleOptions): boolean {
   try {
-    const links = document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]');
+    const links = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'));
     let removed = false;
-    links.forEach((link) => {
+    for (const link of links) {
       if (link.href.includes(styleName)) {
-        link.parentNode?.removeChild(link);
+        link.remove();
         removed = true;
       }
-    });
+    }
     return removed;
   } catch (error: unknown) {
     throw wrapError(`Failed to remove stylesheet "${styleName}".`, error);
@@ -233,6 +233,9 @@ export function applyHidingMethod({
     }
 
     // Global (stylesheet injection) — merge all selectors into a single <style> element
+    for (const sel of selectors) {
+      validateCssSelector(sel);
+    }
     const text = selectors.map((sel) => `${sel} { ${properties} }`).join('\n');
     if (wait) {
       return injectStyle({ text, wait: true });

@@ -26,6 +26,19 @@ export function toArray<T>(value: T | T[]): T[] {
 }
 
 /**
+ * Validates that a CSS selector string does not contain characters that could
+ * enable CSS injection when interpolated into a stylesheet rule.
+ *
+ * @param selector - The CSS selector to validate.
+ * @throws If the selector contains `{` or `}` characters.
+ */
+export function validateCssSelector(selector: string): void {
+  if (/[{}]/.test(selector)) {
+    throw new Error(`Invalid CSS selector: "${selector}" — curly braces are not allowed.`);
+  }
+}
+
+/**
  * Validates that a location string is a valid injection target.
  *
  * @param location - The location string to validate.
