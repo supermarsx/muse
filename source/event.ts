@@ -1,28 +1,55 @@
 /**
- * Event
+ * DOM event utilities.
+ * @module event
  */
 
-export namespace Event {
-    /**
-     * Wait for the DOM content to be loaded before executing the callback.
-     * @callback callback Callback function to execute once the DOM content is loaded.
-     */
-    export function waitDomLoaded(callback: VoidFunction): void {
-        const eventName: string = 'DOMContentLoaded';
-        document.addEventListener(eventName, callback);
-    }
-    export const domLoaded = Event.waitDomLoaded;
-
-    /**
-     * Wait for the DOM content to be loaded using a promise. Alternative method.
-     * @returns {Promise<void>} Returns a promise that resolves to nothing.
-     */
-    export function waitDomLoadedAlt(): Promise<void> {
-        return new Promise(function (resolve): void {
-            const eventName: string = 'DOMContentLoaded';
-            document.addEventListener(eventName, function (): void { resolve() });
-        });
-    }
-    export const waitDomLoadedPromise = Event.waitDomLoadedAlt;
-    export const domLoadedPromise = Event.waitDomLoadedAlt;
+/**
+ * Executes a callback when the DOM content has finished loading.
+ * If the DOM is already loaded, the callback is invoked immediately.
+ *
+ * @param callback - Function to execute once `DOMContentLoaded` fires.
+ *
+ * @example
+ * ```ts
+ * waitDomLoaded(() => console.log('DOM ready'));
+ * ```
+ */
+export function waitDomLoaded(callback: VoidFunction): void {
+  if (document.readyState !== 'loading') {
+    callback();
+    return;
+  }
+  document.addEventListener('DOMContentLoaded', callback, { once: true });
 }
+
+/**
+ * Returns a Promise that resolves when the DOM content has finished loading.
+ * If the DOM is already loaded, the Promise resolves immediately.
+ *
+ * @returns A Promise that resolves when `DOMContentLoaded` fires (or immediately if already loaded).
+ *
+ * @example
+ * ```ts
+ * await waitDomLoadedAsync();
+ * console.log('DOM ready');
+ * ```
+ */
+export function waitDomLoadedAsync(): Promise<void> {
+  if (document.readyState !== 'loading') {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    document.addEventListener('DOMContentLoaded', () => resolve(), { once: true });
+  });
+}
+
+/**
+ * Event namespace for backward compatibility with the global `_muse.Event` API.
+ */
+export const Event = {
+  waitDomLoaded,
+  domLoaded: waitDomLoaded,
+  waitDomLoadedAlt: waitDomLoadedAsync,
+  waitDomLoadedPromise: waitDomLoadedAsync,
+  domLoadedPromise: waitDomLoadedAsync,
+} as const;

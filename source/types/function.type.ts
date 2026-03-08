@@ -1,30 +1,24 @@
 /**
- * Function (type)
+ * Function utility types.
+ * @module types/function
  */
 
-/**
- * 
- */
-export type OriginalParametersObject = {
-    functionName?: string,
-    scriptList: Array<RegExpExecArray>
-};
+import type { WaitForPropertyOptions, WaitForNestedPropertyOptions } from './common.type';
 
 /**
- * 
+ * Options for waiting on a top-level window function.
  */
-export type WaitFnObject = {
-    functionName: any | string,
-    interval?: number,
-    timeout?: number
-};
+export interface WaitForFunctionOptions extends WaitForPropertyOptions {}
 
 /**
- * 
+ * Options for waiting on a nested (second-level) window function.
  */
-export type WaitFn2ndLevelObject = {
-    firstLevel: any | string,
-    secondLevel: any | string,
-    interval?: number,
-    timeout?: number
-};
+export interface WaitForNestedFunctionOptions extends WaitForNestedPropertyOptions {}
+
+/**
+ * Options for retrieving original parameters of a function from script contents.
+ */
+export interface GetOriginalParametersOptions {
+  /** The function name to search for in script contents. */
+  functionName: string;
+}

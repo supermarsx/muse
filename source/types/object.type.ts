@@ -1,22 +1,16 @@
 /**
- * Object (type)
+ * Object utility types.
+ * @module types/object
  */
 
-/**
- * 
- */
-export type WaitFnObject = {
-    objectName: any | string,
-    interval?: number,
-    timeout?: number
-};
+import type { WaitForPropertyOptions, WaitForNestedPropertyOptions } from './common.type';
 
 /**
- * 
+ * Options for waiting on a top-level window object.
  */
-export type WaitFn2ndLevelObject = {
-    firstLevel: any | string,
-    secondLevel: any | string,
-    interval?: number,
-    timeout?: number
-};
+export interface WaitForObjectOptions extends WaitForPropertyOptions {}
+
+/**
+ * Options for waiting on a nested (second-level) window object.
+ */
+export interface WaitForNestedObjectOptions extends WaitForNestedPropertyOptions {}

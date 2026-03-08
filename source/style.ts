@@ -1,355 +1,297 @@
 /**
- * Style
+ * CSS/style injection, manipulation, and element hiding utilities.
+ * @module style
  */
 
-import { CssStringObject, GenericMethodObject, GenericMethodReturn, InlineObject, InlineReturn, StyleInjectTextHeadObject, StyleRemoveExternalObject } from 'types/style.type';
-import { InjectParametersObject } from './types/inject.type';
+import type { InjectOptions, InjectWaitOptions, InjectSyncOptions } from './types/common.type';
+import type {
+  HidingMethod,
+  InlineStyleOptions,
+  InlineStyleWaitOptions,
+  InlineStyleSyncOptions,
+  InlineStyleResult,
+  GenericStyleMethodOptions,
+  GenericStyleMethodResult,
+  InjectTextHeadOptions,
+  RemoveExternalStyleOptions,
+} from './types/style.type';
+import { getElement, getAllStyles } from './selector';
+import { wrapError } from './utils/errors';
+import { validateLocation, getInjectionTarget, injectElement, injectArray, toArray } from './utils/dom';
 
-import { Selector } from 'selector';
-
-export namespace Style {
-
-    export const getList: Function = Selector.getListOfStyles;
-
-    /**
-     * Inject stylesheet from URL or text into a specific DOM location.
-     * @param {Object} o Function arguments object.
-     * @param {string} [o.url] Style URL.
-     * @param {string} [o.text] Style text (alternative to URL).
-     * @param {string} [o.location='head'] Injection location ('head' or 'body').
-     * @returns {HTMLStyleElement | HTMLLinkElement | Error} Returns style or link element if successful, otherwise returns an error.
-     */
-    export function inject({ url = '', text = '', location = 'head', wait = false }: InjectParametersObject): Promise<Event> | HTMLStyleElement | HTMLLinkElement {
-        try {
-            const style: string = text;
-            if (url.length === 0 && style.length === 0) {
-                const message: string = 'Neither url or style was specified.';
-                throw new Error(message);
-            }
-            const validLocations: Array<string> = ['head', 'body'];
-            if (!(validLocations.includes(location))) {
-                const message: string = `Invalid location, ${location}.`;
-                throw new Error(message);
-            }
-            let linkElement: HTMLLinkElement | undefined = undefined;
-            let styleElement: HTMLStyleElement | undefined = undefined;
-            if (url.length > 0) {
-                linkElement = document.createElement('link');
-                linkElement.rel = 'stylesheet';
-                linkElement.type = 'text/css';
-                linkElement.href = url;
-            } else if (style.length > 0) {
-                styleElement = document.createElement('style');
-                styleElement.innerHTML = style;
-            }
-            let stylesheetElement: HTMLStyleElement | HTMLLinkElement =
-                (styleElement instanceof HTMLStyleElement) ?
-                    styleElement as HTMLStyleElement :
-                    linkElement as HTMLLinkElement;
-            const locationElement: HTMLHeadElement | HTMLBodyElement = document[location as keyof Document] as HTMLHeadElement | HTMLBodyElement;
-            if (wait) {
-                return new Promise(function (resolve): void {
-                    stylesheetElement.onload = function (event: Event): void { resolve(event); };
-                    stylesheetElement.onerror = function (error: any): void { throw new Error(error) as Error; };
-                    stylesheetElement = locationElement.appendChild(stylesheetElement);
-                });
-            } else {
-                stylesheetElement = locationElement.appendChild(stylesheetElement);
-                return stylesheetElement;
-            }
-        } catch (error: any) {
-            const message: string = `Failed to inject style.`;
-            const cause: object = { cause: error };
-            throw new Error(message, cause);
-        }
+/**
+ * Injects a stylesheet from a URL or inline CSS text into the DOM.
+ *
+ * @param options - Injection options.
+ * @param options.url - Stylesheet URL (creates a `<link>` element).
+ * @param options.text - Inline CSS text (creates a `<style>` element).
+ * @param options.location - DOM location ('head' or 'body'). @defaultValue 'head'
+ * @param options.wait - If `true`, returns a Promise that resolves on load. @defaultValue false
+ * @returns The created element, or a Promise resolving to the load Event.
+ *
+ * @example
+ * ```ts
+ * // Inject inline CSS
+ * injectStyle({ text: 'body { background: #000; }' });
+ *
+ * // Inject external stylesheet and wait
+ * await injectStyle({ url: 'https://cdn.example.com/style.css', wait: true });
+ * ```
+ */
+export function injectStyle(options: InjectWaitOptions): Promise<Event>;
+export function injectStyle(options?: InjectSyncOptions): HTMLStyleElement | HTMLLinkElement;
+export function injectStyle(options?: InjectOptions): Promise<Event> | HTMLStyleElement | HTMLLinkElement;
+export function injectStyle({ url = '', text = '', location = 'head', wait = false }: InjectOptions = {}):
+  | Promise<Event>
+  | HTMLStyleElement
+  | HTMLLinkElement {
+  try {
+    if (!url && !text) {
+      throw new Error('Neither url nor text was specified.');
     }
-    export const add: Function = Style.inject;
+    validateLocation(location);
 
-    /**
-     * Inject styles sequentially.
-     * @param {Array<InjectParametersObject>} arrayOfInjectParametersObject Array of injection parameters object.
-     * @returns Array containing style, link elements or events. 
-     */
-    export function injectArray(arrayOfInjectParametersObject: Array<InjectParametersObject>): Promise<Array<HTMLStyleElement | HTMLLinkElement | Event>> {
-        let arrayOfElements: Array<HTMLStyleElement | HTMLLinkElement | Event> = [];
-        let promiseChain: Promise<void> = Promise.resolve();
-        for (const injectParametersObject of arrayOfInjectParametersObject) {
-            promiseChain = promiseChain.then(function (): Promise<HTMLStyleElement | HTMLLinkElement | Event> {
-                return Style.inject(injectParametersObject) as Promise<HTMLStyleElement | HTMLLinkElement | Event>;
-            }).then(function (stylesheetElementOrEvent: HTMLStyleElement | HTMLLinkElement | Event): void {
-                arrayOfElements.push(stylesheetElementOrEvent);
-            });
-        }
-        return promiseChain.then(function (): Array<HTMLStyleElement | HTMLLinkElement | Event> {
-            return arrayOfElements;
-        }).catch(function (error: any): never {
-            const message: string = 'Failed to inject array of styles.';
-            const cause: object = { cause: error };
-            throw new Error(message, cause);
+    let element: HTMLStyleElement | HTMLLinkElement;
+
+    if (url) {
+      const linkElement = document.createElement('link');
+      linkElement.rel = 'stylesheet';
+      linkElement.type = 'text/css';
+      linkElement.href = url;
+      element = linkElement;
+    } else {
+      const styleElement = document.createElement('style');
+      styleElement.innerHTML = text;
+      element = styleElement;
+    }
+
+    const target = getInjectionTarget(location);
+    return injectElement(element, target, wait, url);
+  } catch (error: unknown) {
+    throw wrapError('Failed to inject style.', error);
+  }
+}
+
+/**
+ * Injects an array of stylesheets sequentially.
+ *
+ * @param items - Array of injection option objects.
+ * @returns A Promise resolving to an array of created elements or load events.
+ */
+export async function injectStyleArray(
+  items: InjectOptions[],
+): Promise<Array<HTMLStyleElement | HTMLLinkElement | Event>> {
+  try {
+    return await injectArray(items, (item) => injectStyle({ ...item, wait: true }));
+  } catch (error: unknown) {
+    throw wrapError('Failed to inject array of styles.', error);
+  }
+}
+
+/**
+ * Convenience function to inject an array of stylesheet URLs into the head.
+ *
+ * @param urls - Array of stylesheet URLs.
+ * @returns A Promise resolving to an array of load events.
+ */
+export function injectStyleUrls(urls: string[]): Promise<Array<HTMLStyleElement | HTMLLinkElement | Event>> {
+  return injectStyleArray(urls.map((url) => ({ url, location: 'head' as const })));
+}
+
+/**
+ * Injects CSS text into the document head as a `<style>` element.
+ *
+ * @param options - Text injection options.
+ * @param options.text - CSS text to inject.
+ * @returns The created HTMLStyleElement.
+ */
+export function injectTextHead({ text = '' }: InjectTextHeadOptions = {}): HTMLStyleElement {
+  return injectStyle({ text }) as HTMLStyleElement;
+}
+
+/**
+ * Removes external stylesheets from the DOM by partial `href` attribute match.
+ * (Fixed: the original code incorrectly removed scripts instead of styles.)
+ *
+ * @param options - Removal options.
+ * @param options.styleName - Partial string to match against stylesheet `href` attributes.
+ * @returns `true` if at least one stylesheet was removed.
+ */
+export function removeExternalStyle({ styleName }: RemoveExternalStyleOptions): boolean {
+  try {
+    const links = document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]');
+    let removed = false;
+    links.forEach((link) => {
+      if (link.href.includes(styleName)) {
+        link.parentNode?.removeChild(link);
+        removed = true;
+      }
+    });
+    return removed;
+  } catch (error: unknown) {
+    throw wrapError(`Failed to remove stylesheet "${styleName}".`, error);
+  }
+}
+
+/**
+ * Valid hiding method names.
+ * @internal
+ */
+const HIDING_METHODS: readonly HidingMethod[] = ['displayNone', 'opacityZero', 'visibilityHidden'] as const;
+
+/**
+ * Type guard for HidingMethod.
+ * @internal
+ */
+function isHidingMethod(value: string | number): value is HidingMethod {
+  return typeof value === 'string' && (HIDING_METHODS as readonly string[]).includes(value);
+}
+
+/**
+ * Generates a CSS property string for a given hiding method.
+ * @internal
+ */
+function getHidingCss(method: HidingMethod): string {
+  switch (method) {
+    case 'displayNone':
+      return 'display: none !important;';
+    case 'opacityZero':
+      return 'opacity: 0 !important;';
+    case 'visibilityHidden':
+      return 'visibility: hidden !important;';
+  }
+}
+
+/**
+ * Applies inline CSS to a specific element.
+ *
+ * @param options - Inline style options.
+ * @param options.selector - CSS selector for the target element.
+ * @param options.css - CSS properties to set as inline style.
+ * @param options.wait - If `true`, waits for the element to appear first.
+ * @returns The target Element, or a Promise resolving to it if `wait` is true.
+ */
+export function applyInlineStyle(options: InlineStyleWaitOptions): Promise<Element>;
+export function applyInlineStyle(options: InlineStyleSyncOptions): Element;
+export function applyInlineStyle(options: InlineStyleOptions): InlineStyleResult;
+export function applyInlineStyle({ selector, css, wait = false }: InlineStyleOptions): InlineStyleResult {
+  try {
+    if (wait) {
+      return getElement({ selector, wait: true })
+        .then((element: Element) => {
+          element.setAttribute('style', css);
+          return element;
+        })
+        .catch((error: unknown) => {
+          throw wrapError('Failed to apply inline style.', error);
         });
     }
-
-    /**
-     * 
-     * @param param0 
-     * @returns 
-     */
-    export function injectArrayHeadUrl(arrayOfStyleUrls: Array<string>): Promise<Array<HTMLStyleElement | HTMLLinkElement | Event>> {
-        let arrayOfInjectParametersObject: Array<InjectParametersObject> = [];
-        for (const styleUrl of arrayOfStyleUrls)
-            arrayOfInjectParametersObject.push({
-                url: styleUrl,
-                location: 'head'
-            });
-        return injectArray(arrayOfInjectParametersObject);
-    }
-
-    /**
-     * Inject stylesheet text on head.
-     * @param {string} text Style text.
-     * @returns {HTMLStyleElement} Style element if successful.
-     */
-    export function injectTextHead({ text = '' }: StyleInjectTextHeadObject): HTMLStyleElement {
-        return Style.inject({ text }) as HTMLStyleElement;
-    }
-    export const addTextHead: Function = Style.injectTextHead;
-
-    /**
-     * Removes an external script from the DOM based on its partial source attribute match.
-     * @param {string} scriptName Partial filename/src.
-     * @returns {Boolean | Error} True on success or error.
-     */
-    export function removeExternal({ scriptName = '' }: StyleRemoveExternalObject): Boolean {
-        try {
-            const scripts: NodeListOf<HTMLElementTagNameMap['script']> = Selector.getListOfScripts();
-            for (const script of scripts) {
-                const containsScriptName: boolean = script.src.toString().includes(scriptName) ? true : false;
-                if (containsScriptName) script.parentNode?.removeChild(script);
-            }
-            return true;
-        } catch (error: any) {
-            const message: string = `Failed to remove script.`;
-            const cause: object = { cause: error };
-            throw new Error(message, cause);
-        }
-    }
-    export const deleteExternal: Function = Style.removeExternal;
-
-    /**
-     * Element
-     */
-    export namespace Element {
-        /**
-         * Get a prepared CSS string to inject in this context.
-         * @param selector Element selector.
-         * @param css Selector properties. 
-         * @returns Returns a prepared CSS string.
-         */
-        function getCssString({ selector = '', method = '', inline = false }: CssStringObject): string {
-            let cssString: string;
-            let properties: string;
-            switch (method) {
-                case 'displayNone':
-                    properties = 'display: none !important;';
-                    break;
-                case 'opacityZero':
-                    properties = 'opacity: 0 !important;';
-                    break;
-                case 'visibilityHidden':
-                    properties = 'visibility: hidden !important;';
-                    break;
-                default:
-                    properties = ''
-                    break;
-            }
-            cssString = inline ? properties : `${selector} { ${properties} }`;
-            return cssString;
-        }
-
-        /**
-         * Apply inline style to element.
-         * @param selector 
-         * @param wait 
-         */
-        export function inline({ selector = '', css = '', wait = false }: InlineObject): InlineReturn {
-            try {
-                const attribute: string = 'style';
-                if (wait) {
-                    return new Promise(function (resolve): void {
-                        (Selector.getElement({ selector, wait }) as Promise<Element>).then(function (element: Element): void {
-                            element.setAttribute(attribute, css);
-                            resolve(element);
-                        });
-                    });
-                } else {
-                    const element: Element = Selector.getElement({ selector }) as Element;
-                    element.setAttribute(attribute, css);
-                    return element;
-                }
-            } catch (error: any) {
-                const message: string = 'Failed to apply inline style.';
-                const cause: object = { cause: error };
-                throw new Error(message, cause);
-            }
-        }
-
-        /**
-         * 
-         * @param selectorOrArrayOfSelectors 
-         * @param {string} method
-         * @param {boolean} inline
-         * @returns 
-         */
-        function genericMethod({ selectorOrArrayOfSelectors, method = '', inline = false, wait = false }: GenericMethodObject): GenericMethodReturn {
-            if (Array.isArray(selectorOrArrayOfSelectors)) { // Array
-                let arrayOfElements: Array<Event | Element | HTMLStyleElement> = [];
-                if (inline) { // Array, inline
-                    if (wait) { // Array, inline, wait 
-                        let promiseChain: Promise<void> = Promise.resolve();
-                        for (const selector of selectorOrArrayOfSelectors) {
-                            const css: string = getCssString({ selector, method, inline });
-                            promiseChain = promiseChain.then(function (): Promise<Element> {
-                                return Style.Element.inline({ selector, css, wait }) as Promise<Element>;
-                            }).then(function (scriptElementOrEvent: Element): void {
-                                arrayOfElements.push(scriptElementOrEvent);
-                            });
-                        }
-                        return promiseChain.then(function (): Array<Event | HTMLStyleElement | Element> {
-                            return arrayOfElements;
-                        }).catch(function (error: any): never {
-                            const message: string = 'Failed to wait and apply inline darkmode to array of selectors.';
-                            const cause: object = { cause: error };
-                            throw new Error(message, cause);
-                        });
-                    } else { // Array, inline, nowait
-                        try {
-                            for (const selector of selectorOrArrayOfSelectors) {
-                                const css: string = getCssString({ selector, method, inline });
-                                const element: Element = Style.Element.inline({ selector, css }) as Element;
-                                arrayOfElements.push(element);
-                            }
-                            return arrayOfElements;
-                        } catch (error: any) {
-                            const message: string = 'Failed to apply inline darkmode to array of selectors.';
-                            const cause: object = { cause: error };
-                            throw new Error(message, cause);
-                        }
-                    }
-                } else { // Array, global
-                    if (wait) { // Array, global, wait
-                        let promiseChain: Promise<void> = Promise.resolve();
-                        for (const selector of selectorOrArrayOfSelectors) {
-                            const text: string = getCssString({ selector, method });
-                            promiseChain = promiseChain.then(function (): Promise<Event> {
-                                return Style.inject({ text, wait }) as Promise<Event>;
-                            }).then(function (scriptElementOrEvent: Event): void {
-                                arrayOfElements.push(scriptElementOrEvent);
-                            });
-                        }
-                        return promiseChain.then(function (): Array<Event | HTMLStyleElement | Element> {
-                            return arrayOfElements;
-                        }).catch(function (error: any): never {
-                            const message: string = 'Failed to wait and apply darkmode to array of selectors.';
-                            const cause: object = { cause: error };
-                            throw new Error(message, cause);
-                        });
-                    } else { // Array, global, nowait
-                        try {
-                            for (const selector of selectorOrArrayOfSelectors) {
-                                const text: string = getCssString({ selector, method });
-                                const element: Element = Style.inject({ text }) as HTMLStyleElement;
-                                arrayOfElements.push(element);
-                            }
-                            return arrayOfElements;
-                        } catch (error: any) {
-                            const message: string = 'Failed to apply darkmode to array of selectors.';
-                            const cause: object = { cause: error };
-                            throw new Error(message, cause);
-                        }
-
-                    }
-                }
-            } else { // Single
-                const selector: string = selectorOrArrayOfSelectors;
-                if (inline) { // Single, inline
-                    if (wait) { // Single, inline, wait
-                        return new Promise(function (resolve): void {
-                            const css: string = getCssString({ selector, method, inline });
-                            (Style.Element.inline({ selector, css, wait }) as Promise<Element>).then(function (element): void {
-                                resolve(element);
-                            }).catch(function (error: any): never {
-                                const message: string = 'Failed to wait and apply inline darkmode to selector.';
-                                const cause: object = { cause: error };
-                                throw new Error(message, cause);
-                            });
-                        });
-                    } else { // Single, inline, nowait
-                        try {
-                            const css: string = getCssString({ selector, method, inline });
-                            const element: Element = Style.Element.inline({ selector, css }) as Element;
-                            return element;
-                        } catch (error: any) {
-                            const message: string = 'Failed to apply inline darkmode to selector.';
-                            const cause: object = { cause: error };
-                            throw new Error(message, cause);
-                        }
-                    }
-                } else { // Single, global
-                    if (wait) { // Single, global, wait
-                        return new Promise(function (resolve): void {
-                            const text: string = getCssString({ selector, method });
-                            (Style.inject({ text, wait }) as Promise<Event>).then(function (event): void {
-                                resolve(event);
-                            }).catch(function (error: any): never {
-                                const message: string = 'Failed to wait and apply darkmode to selector.';
-                                const cause: object = { cause: error };
-                                throw new Error(message, cause);
-                            });
-                        });
-                    } else { // Single, global, nowait
-                        try {
-                            const text: string = getCssString({ selector, method });
-                            const element: HTMLStyleElement = Style.inject({ text }) as HTMLStyleElement;
-                            return element;
-                        } catch (error: any) {
-                            const message: string = 'Failed to apply darkmode to selector.';
-                            const cause: object = { cause: error };
-                            throw new Error(message, cause);
-                        }
-
-                    }
-                }
-            }
-        }
-
-        /**
-         * Add 'display: none !important;' property to an element or array of elements.
-         * @param selectorOrArrayOfSelectors Element selector or array of selectors.
-         * @returns Returns html style element if successful, otherwise an error.
-         */
-        export function displayNone({ selectorOrArrayOfSelectors, inline = false, wait = false }: GenericMethodObject): GenericMethodReturn {
-            const method: string = 'displayNone';
-            return genericMethod({ selectorOrArrayOfSelectors, method, inline, wait });
-        }
-
-        /**
-         * Add 'opacity: 0 !important;' property to an element or array of elements.
-         * @param selectorOrArrayOfSelectors Element selector or array of selectors.
-         * @returns Returns html style element if successful, otherwise an error.
-         */
-        export function opacityZero({ selectorOrArrayOfSelectors, inline = false, wait = false }: GenericMethodObject): GenericMethodReturn {
-            const method: string = 'opacityZero';
-            return genericMethod({ selectorOrArrayOfSelectors, method, inline, wait });
-        }
-
-        /**
-         * Add 'visibility: hidden !important;' property to an element or array of elements.
-         * @param selectorOrArrayOfSelectors Element selector or array of selectors.
-         * @returns Returns html style element if successful, otherwise an error.
-         */
-        export function visibilityHidden({ selectorOrArrayOfSelectors, inline = false, wait = false }: GenericMethodObject): GenericMethodReturn {
-            const method: string = 'visibilityHidden';
-            return genericMethod({ selectorOrArrayOfSelectors, method, inline, wait });
-        }
-    }
+    const element = getElement({ selector });
+    element.setAttribute('style', css);
+    return element;
+  } catch (error: unknown) {
+    throw wrapError('Failed to apply inline style.', error);
+  }
 }
+
+/**
+ * Applies a hiding method to one or more elements, either as inline styles or injected stylesheets.
+ *
+ * @param options - Method options.
+ * @param options.selectorOrArrayOfSelectors - CSS selector(s) to target.
+ * @param options.method - The hiding method name.
+ * @param options.inline - If `true`, applies as inline `style` attribute.
+ * @param options.wait - If `true`, waits for elements to appear.
+ * @returns The result (elements, events, or Promises thereof).
+ */
+export function applyHidingMethod({
+  selectorOrArrayOfSelectors,
+  method = 'displayNone',
+  inline = false,
+  wait = false,
+}: GenericStyleMethodOptions): GenericStyleMethodResult {
+  try {
+    if (!isHidingMethod(method)) {
+      throw new Error(`Unknown hiding method: "${String(method)}".`);
+    }
+    const properties = getHidingCss(method);
+    const selectors = toArray(selectorOrArrayOfSelectors);
+    const isSingle = !Array.isArray(selectorOrArrayOfSelectors);
+
+    if (inline) {
+      if (wait) {
+        const promises = selectors.map(
+          (sel) => applyInlineStyle({ selector: sel, css: properties, wait: true }),
+        );
+        if (isSingle) {
+          return promises[0];
+        }
+        return Promise.all(promises);
+      }
+      const elements = selectors.map((sel) => applyInlineStyle({ selector: sel, css: properties }));
+      return isSingle ? elements[0] : elements;
+    }
+
+    // Global (stylesheet injection)
+    if (wait) {
+      const promises = selectors.map((sel) => {
+        const text = `${sel} { ${properties} }`;
+        return injectStyle({ text, wait: true });
+      });
+      if (isSingle) {
+        return promises[0];
+      }
+      return Promise.all(promises);
+    }
+
+    const elements = selectors.map((sel) => {
+      const text = `${sel} { ${properties} }`;
+      return injectStyle({ text });
+    });
+    return isSingle ? elements[0] : elements;
+  } catch (error: unknown) {
+    throw wrapError('Failed to apply hiding method.', error);
+  }
+}
+
+/**
+ * Hides element(s) using `display: none !important`.
+ */
+export function displayNone(options: GenericStyleMethodOptions): GenericStyleMethodResult {
+  return applyHidingMethod({ ...options, method: 'displayNone' });
+}
+
+/**
+ * Hides element(s) using `opacity: 0 !important`.
+ */
+export function opacityZero(options: GenericStyleMethodOptions): GenericStyleMethodResult {
+  return applyHidingMethod({ ...options, method: 'opacityZero' });
+}
+
+/**
+ * Hides element(s) using `visibility: hidden !important`.
+ */
+export function visibilityHidden(options: GenericStyleMethodOptions): GenericStyleMethodResult {
+  return applyHidingMethod({ ...options, method: 'visibilityHidden' });
+}
+
+/**
+ * Style namespace for backward compatibility with the global `_muse.Style` API.
+ */
+export const Style = {
+  getList: getAllStyles,
+  inject: injectStyle,
+  add: injectStyle,
+  injectArray: injectStyleArray,
+  injectArrayHeadUrl: injectStyleUrls,
+  injectTextHead: injectTextHead,
+  addTextHead: injectTextHead,
+  removeExternal: removeExternalStyle,
+  deleteExternal: removeExternalStyle,
+  Element: {
+    inline: applyInlineStyle,
+    displayNone,
+    opacityZero,
+    visibilityHidden,
+  },
+} as const;

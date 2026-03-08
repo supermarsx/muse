@@ -1,101 +1,112 @@
 /**
- * Special
+ * Special UI components (toast notifications, navigation buttons).
+ * @module special
  */
 
 /** @jsx renderer.create */
 
-import { buttonGoToTopAndBottomHtml } from 'html/special.html';
-import { buttonGoToTopAndBottomStyle } from 'styles/special.styles';
-import { ToastInitObject, ToastMessageObject } from 'types/special.type';
+import { buttonGoToTopAndBottomHtml } from './html/special.html';
+import { buttonGoToTopAndBottomStyle } from './styles/special.styles';
+import type { ToastInitOptions, ToastMessageOptions } from './types/special.type';
 
-import { Style } from 'style';
+import { injectTextHead } from './style';
 import toast, { Toaster } from 'solid-toast';
 import { CommonDOMRenderer } from 'render-jsx/dom';
+import { wrapError } from './utils/errors';
 
-export namespace Special {
-
-    /**
-     * Special elements
-     */
-    export namespace Element {
-
-        /**
-         * 
-         */
-        export namespace Button {
-
-        }
-
-        /**
-         * 
-         */
-        export namespace Toast {
-
-            /**
-             * 
-             */
-            export function init({ position = 'bottom-left', gutter = 8 }: ToastInitObject): void {
-                const renderer = new CommonDOMRenderer();
-                return renderer.render(<div><Toaster position={position} gutter={gutter} /></div>).on(document.body);
-            }
-
-            /**
-             * 
-             * @param toastId 
-             * @returns 
-             */
-            export function dismiss(toastId: any): void {
-                return toast.dismiss(toastId);
-            }
-
-            /**
-             * 
-             * @param param0 
-             */
-            export function message({
-                message = '',
-                toastOptions,
-                type = 'default',
-                promise,
-                promiseMessages = {
-                    loading: '',
-                    success: '',
-                    error: ''
-                }
-            }: ToastMessageObject): string | Promise<any> {
-                switch (type) {
-                    case 'loading':
-                        return toast.loading(message, toastOptions);
-                    case 'success':
-                        return toast.success(message, toastOptions);
-                    case 'error':
-                        return toast.error(message, toastOptions);
-                    case 'promise':
-                        return toast.promise(promise, promiseMessages, toastOptions);
-                    default:
-                        return toast(message, toastOptions);
-                }
-            }
-        }
-
-        /**
-         * Add a button to right bottom corner to got to the top and bottom of the page.
-         * @returns Returns a div element of the injected button, otherwise an error.
-         */
-        export function addButtonGoToTopAndBottom(): HTMLDivElement {
-            try {
-                const div: HTMLDivElement = document.createElement('div');
-                const text: string = buttonGoToTopAndBottomStyle;
-                div.innerHTML = buttonGoToTopAndBottomHtml;
-                Style.injectTextHead({ text });
-                const injectedDiv: HTMLDivElement = document.body.appendChild(div);
-                return injectedDiv;
-            } catch (error: any) {
-                const message: string = `Failed to add go to top and go to bottom buttons.`;
-                const cause: Object = { cause: error };
-                throw new Error(message, cause);
-            }
-        }
-        export const addTopBottom: Function = Element.addButtonGoToTopAndBottom;
-    }
+/**
+ * Initializes the toast notification system by rendering the Toaster component.
+ *
+ * @param options - Toast init options.
+ * @param options.position - Position of the toast container. @defaultValue 'bottom-left'
+ * @param options.gutter - Gap between toasts in pixels. @defaultValue 8
+ */
+export function initToast({ position = 'bottom-left', gutter = 8 }: ToastInitOptions): void {
+  const renderer = new CommonDOMRenderer();
+  return renderer
+    .render(
+      <div>
+        <Toaster position={position} gutter={gutter} />
+      </div>,
+    )
+    .on(document.body);
 }
+
+/**
+ * Dismisses a specific toast by its ID.
+ *
+ * @param toastId - The ID of the toast to dismiss.
+ */
+export function dismissToast(toastId: string): void {
+  return toast.dismiss(toastId);
+}
+
+/**
+ * Displays a toast notification.
+ *
+ * @param options - Toast message options.
+ * @param options.message - Text to display.
+ * @param options.type - Toast type ('default', 'loading', 'success', 'error', 'promise').
+ * @param options.toastOptions - Additional solid-toast options.
+ * @param options.promise - Promise to track (required when type is 'promise').
+ * @param options.promiseMessages - Messages for each promise state.
+ * @returns The toast ID string, or a Promise for promise-type toasts.
+ */
+export function showToast({
+  message: msg = '',
+  toastOptions,
+  type = 'default',
+  promise: trackedPromise,
+  promiseMessages = {
+    loading: '',
+    success: '',
+    error: '',
+  },
+}: ToastMessageOptions): string | Promise<unknown> {
+  switch (type) {
+    case 'loading':
+      return toast.loading(msg, toastOptions);
+    case 'success':
+      return toast.success(msg, toastOptions);
+    case 'error':
+      return toast.error(msg, toastOptions);
+    case 'promise':
+      if (!trackedPromise) {
+        throw new Error('A promise must be provided when type is "promise".');
+      }
+      return toast.promise(trackedPromise, promiseMessages, toastOptions);
+    default:
+      return toast(msg, toastOptions);
+  }
+}
+
+/**
+ * Adds "go to top" and "go to bottom" navigation buttons to the page.
+ *
+ * @returns The injected container div element.
+ */
+export function addGoToTopAndBottomButtons(): HTMLDivElement {
+  try {
+    const div = document.createElement('div');
+    div.innerHTML = buttonGoToTopAndBottomHtml;
+    injectTextHead({ text: buttonGoToTopAndBottomStyle });
+    return document.body.appendChild(div);
+  } catch (error: unknown) {
+    throw wrapError('Failed to add go-to-top and go-to-bottom buttons.', error);
+  }
+}
+
+/**
+ * Special namespace for backward compatibility with the global `_muse.Special` API.
+ */
+export const Special = {
+  Element: {
+    Toast: {
+      init: initToast,
+      dismiss: dismissToast,
+      message: showToast,
+    },
+    addButtonGoToTopAndBottom: addGoToTopAndBottomButtons,
+    addTopBottom: addGoToTopAndBottomButtons,
+  },
+} as const;

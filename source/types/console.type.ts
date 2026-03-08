@@ -1,14 +1,14 @@
 /**
- * Console (Type)
+ * Console utility types.
+ * @module types/console
  */
 
 /**
- * Console function result parameters object
- * @typedef {Object} ResultParametersObject
- * @property {Error | Object} errorObject Error Object or an empty object
- * @property {boolean} useLibraryName Use library name as message prefix
+ * Parameters for the structured console result logger.
  */
-export type ResultParametersObject = {
-    errorObject?: Error | Object | undefined,
-    useLibraryName?: boolean
-};
+export interface ResultLogOptions {
+  /** An error object if the operation failed; omit for success. */
+  errorObject?: Error | undefined;
+  /** Whether to prefix the log message with the library name. */
+  useLibraryName?: boolean;
+}

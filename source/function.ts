@@ -1,123 +1,139 @@
 /**
- * Function
+ * Window function polling and introspection utilities.
+ * @module function
  */
 
-import { WaitFn2ndLevelObject, OriginalParametersObject, WaitFnObject } from 'types/function.type';
+import type {
+  WaitForFunctionOptions,
+  WaitForNestedFunctionOptions,
+  GetOriginalParametersOptions,
+} from './types/function.type';
+import { pollUntil } from './utils/polling';
+import { getAllScripts } from './selector';
+import { wrapError } from './utils/errors';
+import { win } from './utils/window';
 
-import { Selector } from 'selector';
-
-export namespace FunctionFn {
-    /**
-     * Wait for a function to exist.
-     * @param {string} functionName Function name
-     * @param {number} interval Checking interval, default is 50ms
-     * @param {number} timeout Timeout in ms, default is 15s
-     * @returns {Promise<Function | Error>} Returns promise that resolves to function if successful, otherwise returns an error.
-     */
-    export function wait({ functionName, interval = 50, timeout = 15000 }: WaitFnObject): Promise<void> {
-        return new Promise(function (resolve): void {
-            try {
-                const functionChecker = setInterval(function (): void {
-                    const functionToCheck: any = window[functionName];
-                    if (functionToCheck instanceof Function) {
-                        clearTimeout(timeoutChecker);
-                        clearInterval(functionChecker);
-                        resolve();
-                    }
-                }, interval);
-
-                const timeoutChecker = setTimeout(function (): void {
-                    clearInterval(functionChecker);
-                    const errorMessage: string = `Failed to wait for function ${functionName} after ${timeout}ms. Function not found.`;
-                    throw new Error(errorMessage);
-                }, timeout);
-            } catch (error: any) {
-                const errorMessage: string = `Failed to wait for function with error: ${error.message}.`;
-                throw new Error(errorMessage);
-            }
-        });
-    }
-
-    /**
-     * Wait for a 2nd level function to exist.
-     * @param {string} firstLevel First level name
-     * @param {string} secondLevel Second level function name
-     * @param {number} interval Checking interval
-     * @param {number} timeout Timeout in ms
-     * @returns {Promise<Function | Error>} Returns promise that resolves to function if successful, otherwise returns an error.
-     */
-    export function waitFor2ndLevel({ firstLevel, secondLevel, interval = 50, timeout = 15000 }: WaitFn2ndLevelObject): Promise<Function> {
-        return new Promise(function (resolve): void {
-            try {
-                const functionChecker = setInterval(function (): void {
-                    if (typeof window[firstLevel] !== undefined) {
-                        const functionToCheck: any = window[firstLevel][secondLevel];
-                        if (functionToCheck instanceof Function) {
-                            clearTimeout(timeoutChecker);
-                            clearInterval(functionChecker);
-                            resolve(functionToCheck);
-                        }
-                    }
-                }, interval);
-                const timeoutChecker = setTimeout(function (): void {
-                    clearInterval(functionChecker);
-                    const errorMessage: string = `Failed to wait for second level function ${firstLevel}.${secondLevel} after ${timeout}ms. Function not found.`;
-                    throw new Error(errorMessage);
-                }, timeout);
-            } catch (error: any) {
-                const errorMessage: string = `Failed to wait for second level function with error: ${error.message}.`;
-                throw new Error(errorMessage);
-            }
-        });
-    }
-    export const wait2nd = FunctionFn.waitFor2ndLevel;
-
-    /**
-     * 
-     */
-    export function getList(): Array<RegExpExecArray | any> {
-        try {
-            let scripts: NodeListOf<HTMLElementTagNameMap['script']> = Selector.getListOfScripts() as NodeListOf<HTMLElementTagNameMap['script']>;
-            let functionRegex: RegExp = /(((\w|\.)+)\((([^)]*)\)\;*))/g;
-            let functionList: Array<RegExpExecArray | any> = [];
-            for (const script of scripts) {
-                const contents: string = script.innerHTML.toString();
-                const matchesArray: Array<RegExpExecArray> = Array.from(contents.matchAll(functionRegex));
-                if (matchesArray.length > 0)
-                    for (const match of matchesArray)
-                        functionList.push(match);
-            }
-            return functionList;
-        } catch (error: any) {
-            const message: string = 'Failed to get list of functions.';
-            const cause: object = { cause: error };
-            throw new Error(message, cause);
-        }
-    }
-    export const getAll = FunctionFn.getList;
-
-    /**
-     * 
-     * @param functionName 
-     */
-    export function getOriginalParameters({ functionName = '' }: OriginalParametersObject) {
-        try {
-            const functionList = FunctionFn.getList();
-            for (const fn of functionList) {
-                const currentScript: string = fn[2].toString();
-                if (currentScript.includes(functionName)) {
-                    const originalParameters: Array<string> = fn[5].toString().split(',');
-                    return originalParameters;
-                }
-            }
-            const message: string = 'Function name not found.';
-            throw new Error(message);
-        } catch (error: any) {
-            const message: string = 'Failed to get original function parameters from script list.';
-            const cause: object = { cause: error };
-            throw new Error(message, cause);
-        }
-    }
-    export const getParameters = FunctionFn.getOriginalParameters;
-
+/**
+ * Waits for a top-level function to exist on `window`.
+ *
+ * @param options - Wait options.
+ * @param options.propertyName - The function name on `window` to poll for.
+ * @param options.interval - Polling interval in ms. @defaultValue 50
+ * @param options.timeout - Maximum wait time in ms. @defaultValue 15000
+ * @returns A Promise that resolves when the function is found.
+ *
+ * @example
+ * ```ts
+ * await waitForFunction({ propertyName: 'initApp' });
+ * window.initApp();
+ * ```
+ */
+export function waitForFunction({ propertyName, interval, timeout, signal }: WaitForFunctionOptions): Promise<void> {
+  return pollUntil(
+    () => {
+      const value = win[propertyName];
+      return typeof value === 'function' ? true : null;
+    },
+    { interval, timeout, signal },
+    `Timed out waiting for function "${propertyName}" on window.`,
+  ).then(() => undefined);
 }
+
+/**
+ * Waits for a nested (second-level) function to exist on `window`.
+ *
+ * @param options - Wait options.
+ * @param options.firstLevel - The first-level property name on `window`.
+ * @param options.secondLevel - The second-level function name.
+ * @param options.interval - Polling interval in ms. @defaultValue 50
+ * @param options.timeout - Maximum wait time in ms. @defaultValue 15000
+ * @returns A Promise resolving to the function once found.
+ *
+ * @example
+ * ```ts
+ * const fn = await waitForNestedFunction({ firstLevel: 'myLib', secondLevel: 'init' });
+ * fn();
+ * ```
+ */
+export function waitForNestedFunction({
+  firstLevel,
+  secondLevel,
+  interval,
+  timeout,
+  signal,
+}: WaitForNestedFunctionOptions): Promise<(...args: unknown[]) => unknown> {
+  return pollUntil(
+    () => {
+      const parent = win[firstLevel];
+      if (parent == null || typeof parent !== 'object') {
+        return null;
+      }
+      const value = (parent as Record<string, unknown>)[secondLevel];
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown) : null;
+    },
+    { interval, timeout, signal },
+    `Timed out waiting for nested function "${firstLevel}.${secondLevel}" on window.`,
+  );
+}
+
+/**
+ * Scans all inline `<script>` elements and extracts function call signatures
+ * using a regex pattern.
+ *
+ * @returns Array of regex match results, each representing a function call found in scripts.
+ */
+export function getFunctionList(): RegExpMatchArray[] {
+  try {
+    const scripts = getAllScripts();
+    const functionRegex = /(((\w|\.)+)\((([^)]*)\);*))/g;
+    const results: RegExpMatchArray[] = [];
+
+    for (const script of scripts) {
+      const contents = script.innerHTML;
+      const matches = Array.from(contents.matchAll(functionRegex));
+      for (const match of matches) {
+        results.push(match);
+      }
+    }
+
+    return results;
+  } catch (error: unknown) {
+    throw wrapError('Failed to get list of functions.', error);
+  }
+}
+
+/**
+ * Retrieves the original parameters of a function by scanning inline script contents.
+ *
+ * @param options - Search options.
+ * @param options.functionName - The function name to search for.
+ * @returns Array of parameter strings.
+ * @throws If scanning fails or the function name is not found.
+ */
+export function getOriginalParameters({ functionName }: GetOriginalParametersOptions): string[] {
+  try {
+    const functionList = getFunctionList();
+    for (const fn of functionList) {
+      const currentScript = fn[2];
+      if (currentScript.includes(functionName)) {
+        return fn[5].split(',');
+      }
+    }
+    throw new Error(`Function "${functionName}" not found in script contents.`);
+  } catch (error: unknown) {
+    throw wrapError('Failed to get original function parameters from script list.', error);
+  }
+}
+
+/**
+ * FunctionFn namespace for backward compatibility with the global `_muse.FunctionFn` API.
+ */
+export const FunctionFn = {
+  wait: waitForFunction,
+  waitFor2ndLevel: waitForNestedFunction,
+  wait2nd: waitForNestedFunction,
+  getList: getFunctionList,
+  getAll: getFunctionList,
+  getOriginalParameters,
+  getParameters: getOriginalParameters,
+} as const;

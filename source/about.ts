@@ -1,11 +1,22 @@
 /**
- * About
+ * Library metadata and version information.
+ * @module about
  */
 
-import packageJson from '../package.json';
+/** Current library version. */
+export const version = '2.0.0';
 
-export namespace About {
-    export const version: string = packageJson.version;
-    export const libraryName: string = packageJson.fullName;
-    export const description: string = packageJson.description;
-}
+/** Library display name. */
+export const libraryName = '_muse';
+
+/** Library description. */
+export const description = '_muse, master userscript extended';
+
+/**
+ * About namespace for backward compatibility with the global `_muse.About` API.
+ */
+export const About = {
+  version,
+  libraryName,
+  description,
+} as const;
