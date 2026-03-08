@@ -21,7 +21,8 @@ export interface PollOptions {
 
 /**
  * Polls a condition function at a regular interval until it returns a non-nullish value,
- * or rejects after a timeout.
+ * or rejects after a timeout. Uses chained `setTimeout` instead of `setInterval` to
+ * prevent callback stacking when the condition check takes longer than the interval.
  *
  * @typeParam T - The type of value the condition resolves to.
  * @param condition - A function called on each interval tick.
@@ -50,6 +51,7 @@ export function pollUntil<T>(
 
   return new Promise<T>((resolve, reject) => {
     let lastError: unknown;
+    let pollTimer: ReturnType<typeof setTimeout>;
 
     // Handle AbortSignal
     if (signal?.aborted) {
@@ -58,7 +60,7 @@ export function pollUntil<T>(
     }
 
     const cleanup = (): void => {
-      clearInterval(checker);
+      clearTimeout(pollTimer);
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
     };
@@ -70,17 +72,23 @@ export function pollUntil<T>(
 
     signal?.addEventListener('abort', onAbort, { once: true });
 
-    const checker = setInterval(() => {
+    const check = (): void => {
       try {
         const result = condition();
         if (result != null) {
           cleanup();
           resolve(result);
+          return;
         }
       } catch (error: unknown) {
         lastError = error;
       }
-    }, interval);
+      // Schedule next check — chained setTimeout prevents stacking
+      pollTimer = setTimeout(check, interval);
+    };
+
+    // Start first check
+    pollTimer = setTimeout(check, interval);
 
     const timer = setTimeout(() => {
       cleanup();
