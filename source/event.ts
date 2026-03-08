@@ -16,10 +16,24 @@
  */
 export function waitDomLoaded(callback: VoidFunction): void {
   if (document.readyState !== 'loading') {
-    callback();
+    try {
+      callback();
+    } catch (error: unknown) {
+      console.warn('[_muse] waitDomLoaded callback error:', error);
+    }
     return;
   }
-  document.addEventListener('DOMContentLoaded', callback, { once: true });
+  document.addEventListener(
+    'DOMContentLoaded',
+    () => {
+      try {
+        callback();
+      } catch (error: unknown) {
+        console.warn('[_muse] waitDomLoaded callback error:', error);
+      }
+    },
+    { once: true },
+  );
 }
 
 /**

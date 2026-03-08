@@ -157,4 +157,17 @@ describe('pollUntil', () => {
       'Polling interval must be a positive finite number',
     );
   });
+
+  it('rejects when interval is below MIN_INTERVAL (e.g. 5ms)', async () => {
+    await expect(pollUntil(() => null, { interval: 5, timeout: 1000 }, 'fail')).rejects.toThrow(
+      'Polling interval must be at least 10ms, got 5ms.',
+    );
+  });
+
+  it('accepts interval exactly at MIN_INTERVAL (10ms)', async () => {
+    const promise = pollUntil(() => 'ok', { interval: 10, timeout: 1000 }, 'fail');
+    await vi.runAllTimersAsync();
+    const result = await promise;
+    expect(result).toBe('ok');
+  });
 });

@@ -44,12 +44,8 @@ export interface ObserverHandle {
  * handle.disconnect();
  * ```
  */
-export function observeElement(
-  config: ObserveElementOptions,
-  callback: MutationCallback,
-): ObserverHandle {
-  const element =
-    typeof config.target === 'string' ? document.querySelector(config.target) : config.target;
+export function observeElement(config: ObserveElementOptions, callback: MutationCallback): ObserverHandle {
+  const element = typeof config.target === 'string' ? document.querySelector(config.target) : config.target;
 
   if (!element) {
     throw new Error(
@@ -88,8 +84,11 @@ export function waitForChild(
   const timeout = options.timeout ?? 15000;
   const signal = options.signal;
 
-  const parentEl =
-    typeof parent === 'string' ? document.querySelector(parent) : parent;
+  if (!Number.isFinite(timeout) || timeout <= 0) {
+    return Promise.reject(new Error(`waitForChild: timeout must be a positive finite number, got ${timeout}.`));
+  }
+
+  const parentEl = typeof parent === 'string' ? document.querySelector(parent) : parent;
 
   if (!parentEl) {
     return Promise.reject(
@@ -155,9 +154,7 @@ export function waitForChild(
 
     const timer = setTimeout(() => {
       cleanup();
-      reject(
-        new Error(`waitForChild: timed out waiting for "${selector}" inside parent.`),
-      );
+      reject(new Error(`waitForChild: timed out waiting for "${selector}" inside parent.`));
     }, timeout);
   });
 }

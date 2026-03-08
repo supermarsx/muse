@@ -102,6 +102,10 @@ describe('script', () => {
         { name: 'c.js', removed: false },
       ]);
     });
+
+    it('throws when scriptNames array contains an empty string', () => {
+      expect(() => removeExternalScripts(['valid.js', '', 'other.js'])).toThrow('Failed to bulk remove scripts.');
+    });
   });
 
   describe('injectScriptArray', () => {
@@ -120,6 +124,12 @@ describe('script', () => {
       expect(result).toBeInstanceOf(Promise);
       // Suppress unhandled rejection from happy-dom failing to load resources
       result.catch(() => {});
+    });
+
+    it('throws when URL array contains an empty string', () => {
+      expect(() => injectScriptUrls(['https://example.com/a.js', '', 'https://example.com/b.js'])).toThrow(
+        'injectScriptUrls: URL array contains an empty string.',
+      );
     });
   });
 

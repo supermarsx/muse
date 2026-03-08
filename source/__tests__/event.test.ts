@@ -52,6 +52,46 @@ describe('event', () => {
       document.dispatchEvent(new window.Event('DOMContentLoaded'));
       expect(callback).toHaveBeenCalledOnce();
     });
+
+    it('catches callback error and logs warning when already loaded', () => {
+      expect(document.readyState).not.toBe('loading');
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const error = new Error('callback boom');
+      const callback = vi.fn(() => {
+        throw error;
+      });
+
+      // Should not throw — error is caught internally
+      expect(() => waitDomLoaded(callback)).not.toThrow();
+      expect(callback).toHaveBeenCalledOnce();
+      expect(warnSpy).toHaveBeenCalledWith('[_muse] waitDomLoaded callback error:', error);
+
+      warnSpy.mockRestore();
+    });
+
+    it('catches callback error and logs warning when deferred', () => {
+      Object.defineProperty(document, 'readyState', {
+        value: 'loading',
+        writable: true,
+        configurable: true,
+      });
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const error = new Error('deferred boom');
+      const callback = vi.fn(() => {
+        throw error;
+      });
+
+      waitDomLoaded(callback);
+
+      // Should not throw — error is caught inside the event handler
+      expect(() => document.dispatchEvent(new window.Event('DOMContentLoaded'))).not.toThrow();
+      expect(callback).toHaveBeenCalledOnce();
+      expect(warnSpy).toHaveBeenCalledWith('[_muse] waitDomLoaded callback error:', error);
+
+      warnSpy.mockRestore();
+    });
   });
 
   describe('waitDomLoadedAsync', () => {

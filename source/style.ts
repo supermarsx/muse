@@ -17,7 +17,14 @@ import type {
 } from './types/style.type';
 import { getElement, getAllStyles } from './selector';
 import { wrapError } from './utils/errors';
-import { validateLocation, getInjectionTarget, injectElement, injectArray, toArray, validateCssSelector } from './utils/dom';
+import {
+  validateLocation,
+  getInjectionTarget,
+  injectElement,
+  injectArray,
+  toArray,
+  validateCssSelector,
+} from './utils/dom';
 
 /**
  * Injects a stylesheet from a URL or inline CSS text into the DOM.
@@ -95,6 +102,11 @@ export async function injectStyleArray(
  * @returns A Promise resolving to an array of load events.
  */
 export function injectStyleUrls(urls: string[]): Promise<Array<HTMLStyleElement | HTMLLinkElement | Event>> {
+  for (const url of urls) {
+    if (!url) {
+      throw new Error('injectStyleUrls: URL array contains an empty string.');
+    }
+  }
   return injectStyleArray(urls.map((url) => ({ url, location: 'head' as const })));
 }
 
@@ -223,9 +235,7 @@ export function applyHidingMethod({
 
     if (inline) {
       if (wait) {
-        const promises = selectors.map(
-          (sel) => applyInlineStyle({ selector: sel, css: properties, wait: true }),
-        );
+        const promises = selectors.map((sel) => applyInlineStyle({ selector: sel, css: properties, wait: true }));
         if (isSingle) {
           return promises[0];
         }

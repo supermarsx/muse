@@ -77,6 +77,11 @@ export async function injectScriptArray(items: InjectOptions[]): Promise<Array<H
  * @returns A Promise resolving to an array of load events.
  */
 export function injectScriptUrls(urls: string[]): Promise<Array<HTMLScriptElement | Event>> {
+  for (const url of urls) {
+    if (!url) {
+      throw new Error('injectScriptUrls: URL array contains an empty string.');
+    }
+  }
   return injectScriptArray(urls.map((url) => ({ url, location: 'head' as const, wait: true })));
 }
 
@@ -113,6 +118,13 @@ export function removeExternalScript(scriptName: string): boolean {
  */
 export function removeExternalScripts(scriptNames: string[]): RemovalResult[] {
   try {
+    // Validate all names are non-empty before scanning DOM
+    for (const name of scriptNames) {
+      if (!name) {
+        throw new Error('scriptNames array contains an empty string.');
+      }
+    }
+
     const scripts = Array.from(getAllScripts());
     const removedSet = new Set<string>();
 

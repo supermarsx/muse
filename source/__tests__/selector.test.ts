@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getElement, waitForElement, getArrayOfElements, queryAll, getAllScripts, getAllStyles, Selector } from '../selector';
+import {
+  getElement,
+  waitForElement,
+  getArrayOfElements,
+  queryAll,
+  getAllScripts,
+  getAllStyles,
+  Selector,
+} from '../selector';
 
 describe('selector', () => {
   beforeEach(() => {
@@ -54,7 +62,19 @@ describe('selector', () => {
     });
 
     it('rejects on timeout', async () => {
-      await expect(waitForElement({ selector: '#never', timeout: 100 })).rejects.toThrow(
+      await expect(waitForElement({ selector: '#never', timeout: 100 })).rejects.toThrow('Failed to wait for element.');
+    });
+
+    it('rejects when timeout is negative', async () => {
+      await expect(waitForElement({ selector: '#never', timeout: -1 })).rejects.toThrow('Failed to wait for element.');
+    });
+
+    it('rejects when timeout is NaN', async () => {
+      await expect(waitForElement({ selector: '#never', timeout: NaN })).rejects.toThrow('Failed to wait for element.');
+    });
+
+    it('rejects when timeout is Infinity', async () => {
+      await expect(waitForElement({ selector: '#never', timeout: Infinity })).rejects.toThrow(
         'Failed to wait for element.',
       );
     });
@@ -111,9 +131,9 @@ describe('selector', () => {
       const controller = new AbortController();
       controller.abort('cancelled');
 
-      await expect(
-        waitForElement({ selector: '#never', signal: controller.signal }),
-      ).rejects.toThrow('Failed to wait for element.');
+      await expect(waitForElement({ selector: '#never', signal: controller.signal })).rejects.toThrow(
+        'Failed to wait for element.',
+      );
     });
 
     it('rejects when signal is aborted during wait', async () => {
@@ -135,10 +155,7 @@ describe('selector', () => {
       document.body.appendChild(d1);
       document.body.appendChild(d2);
 
-      const result = await getArrayOfElements([
-        { selector: '#arr1' },
-        { selector: '#arr2' },
-      ]);
+      const result = await getArrayOfElements([{ selector: '#arr1' }, { selector: '#arr2' }]);
       expect(result.length).toBe(2);
       expect(result[0].id).toBe('arr1');
       expect(result[1].id).toBe('arr2');
@@ -149,11 +166,9 @@ describe('selector', () => {
       d1.id = 'arr-ok';
       document.body.appendChild(d1);
 
-      await expect(
-        getArrayOfElements(
-          [{ selector: '#arr-ok' }, { selector: '#arr-missing' }],
-        ),
-      ).rejects.toThrow('Failed to get array of elements.');
+      await expect(getArrayOfElements([{ selector: '#arr-ok' }, { selector: '#arr-missing' }])).rejects.toThrow(
+        'Failed to get array of elements.',
+      );
     }, 20000);
   });
 

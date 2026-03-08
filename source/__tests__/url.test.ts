@@ -20,7 +20,10 @@ describe('url', () => {
 
     it('matches when string glob pattern with * matches the URL', async () => {
       const { matchUrl } = await import('../url');
-      const result = matchUrl({ pattern: 'https://example.com/dashboard/*', url: 'https://example.com/dashboard/home' });
+      const result = matchUrl({
+        pattern: 'https://example.com/dashboard/*',
+        url: 'https://example.com/dashboard/home',
+      });
       expect(result).toBe(true);
     });
 
@@ -124,9 +127,7 @@ describe('url', () => {
       }
 
       // The 201st should throw
-      expect(() => onUrlChange(() => {})).toThrow(
-        'Maximum number of URL change callbacks (200) reached.',
-      );
+      expect(() => onUrlChange(() => {})).toThrow('Maximum number of URL change callbacks (200) reached.');
 
       // Cleanup
       for (const h of handles) h.stop();
@@ -150,6 +151,23 @@ describe('url', () => {
       const { getUrlParams } = await import('../url');
       const params = getUrlParams('https://example.com?page=1&sort=name&order=asc');
       expect(params).toEqual({ page: '1', sort: 'name', order: 'asc' });
+    });
+
+    it('throws when URL exceeds MAX_URL_LENGTH', async () => {
+      const { getUrlParams } = await import('../url');
+      const longUrl = 'https://example.com/' + 'a'.repeat(2050);
+      expect(() => getUrlParams(longUrl)).toThrow('Invalid URL:');
+    });
+  });
+
+  describe('matchUrl glob wildcard', () => {
+    it('matches URLs with encoded spaces using glob wildcard', async () => {
+      const { matchUrl } = await import('../url');
+      const result = matchUrl({
+        pattern: 'https://example.com/path/*',
+        url: 'https://example.com/path/with%20spaces',
+      });
+      expect(result).toBe(true);
     });
   });
 

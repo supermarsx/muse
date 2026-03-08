@@ -14,8 +14,16 @@ describe('containsAny', () => {
     expect(containsAny({ sourceString: 'hello', substrings: ['world', 'foo'] })).toBe(false);
   });
 
-  it('returns false for an empty substrings array', () => {
-    expect(containsAny({ sourceString: 'hello', substrings: [] })).toBe(false);
+  it('throws for an empty substrings array', () => {
+    expect(() => containsAny({ sourceString: 'hello', substrings: [] })).toThrow(
+      'containsAny: substrings must be a non-empty array.',
+    );
+  });
+
+  it('throws when sourceString is not a string', () => {
+    expect(() => containsAny({ sourceString: 123 as any, substrings: ['a'] })).toThrow(
+      'containsAny: sourceString must be a string.',
+    );
   });
 
   it('returns true for empty substring (always contained)', () => {

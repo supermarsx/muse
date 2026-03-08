@@ -111,15 +111,13 @@ describe('waitForChild', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
 
-    await expect(
-      waitForChild(parent, '.never', { timeout: 50 }),
-    ).rejects.toThrow('waitForChild: timed out waiting for ".never" inside parent.');
+    await expect(waitForChild(parent, '.never', { timeout: 50 })).rejects.toThrow(
+      'waitForChild: timed out waiting for ".never" inside parent.',
+    );
   });
 
   it('rejects when parent selector matches no element', async () => {
-    await expect(
-      waitForChild('#missing-parent', '.child'),
-    ).rejects.toThrow(
+    await expect(waitForChild('#missing-parent', '.child')).rejects.toThrow(
       'waitForChild: parent element not found (selector: "#missing-parent").',
     );
   });
@@ -131,9 +129,9 @@ describe('waitForChild', () => {
     const controller = new AbortController();
     controller.abort('cancelled');
 
-    await expect(
-      waitForChild(parent, '.child', { signal: controller.signal }),
-    ).rejects.toThrow('waitForChild aborted.');
+    await expect(waitForChild(parent, '.child', { signal: controller.signal })).rejects.toThrow(
+      'waitForChild aborted.',
+    );
   });
 
   it('rejects when signal is aborted during the wait', async () => {
@@ -150,6 +148,33 @@ describe('waitForChild', () => {
     setTimeout(() => controller.abort('cancelled mid-wait'), 10);
 
     await expect(promise).rejects.toThrow('waitForChild aborted.');
+  });
+
+  it('rejects when timeout is negative', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    await expect(waitForChild(parent, '.child', { timeout: -1 })).rejects.toThrow(
+      'waitForChild: timeout must be a positive finite number, got -1.',
+    );
+  });
+
+  it('rejects when timeout is NaN', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    await expect(waitForChild(parent, '.child', { timeout: NaN })).rejects.toThrow(
+      'waitForChild: timeout must be a positive finite number, got NaN.',
+    );
+  });
+
+  it('rejects when timeout is Infinity', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    await expect(waitForChild(parent, '.child', { timeout: Infinity })).rejects.toThrow(
+      'waitForChild: timeout must be a positive finite number, got Infinity.',
+    );
   });
 });
 

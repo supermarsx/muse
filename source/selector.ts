@@ -59,6 +59,12 @@ export function getElement({ selector, wait = false, signal }: GetElementOptions
  * @returns A Promise that resolves with the Element, or rejects on timeout.
  */
 export function waitForElement({ selector, timeout = 15000, signal }: WaitForElementOptions): Promise<Element> {
+  if (!Number.isFinite(timeout) || timeout <= 0) {
+    return Promise.reject(
+      wrapError('Failed to wait for element.', new Error(`timeout must be a positive finite number, got ${timeout}.`)),
+    );
+  }
+
   return new Promise<Element>((resolve, reject) => {
     // If already aborted, reject immediately
     if (signal?.aborted) {
@@ -136,14 +142,9 @@ export function waitForElement({ selector, timeout = 15000, signal }: WaitForEle
  * @param signal - Optional AbortSignal to cancel all pending waits.
  * @returns A Promise resolving to an array of matched Elements (in the same order as `selectors`).
  */
-export async function getArrayOfElements(
-  selectors: GetElementOptions[],
-  signal?: AbortSignal,
-): Promise<Element[]> {
+export async function getArrayOfElements(selectors: GetElementOptions[], signal?: AbortSignal): Promise<Element[]> {
   try {
-    return await Promise.all(
-      selectors.map((params) => getElement({ ...params, wait: true, signal })),
-    );
+    return await Promise.all(selectors.map((params) => getElement({ ...params, wait: true, signal })));
   } catch (error: unknown) {
     throw wrapError('Failed to get array of elements.', error);
   }

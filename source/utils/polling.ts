@@ -7,6 +7,9 @@
 const DEFAULT_INTERVAL = 50;
 const DEFAULT_TIMEOUT = 15000;
 
+/** @internal Minimum allowed polling interval to prevent CPU abuse (10ms). */
+const MIN_INTERVAL = 10;
+
 /**
  * Options for the generic polling function.
  */
@@ -52,6 +55,9 @@ export function pollUntil<T>(
   // Fix #6: Bounds validation for interval and timeout
   if (!Number.isFinite(interval) || interval <= 0) {
     return Promise.reject(new Error(`Polling interval must be a positive finite number, got ${interval}.`));
+  }
+  if (interval < MIN_INTERVAL) {
+    return Promise.reject(new Error(`Polling interval must be at least ${MIN_INTERVAL}ms, got ${interval}ms.`));
   }
   if (!Number.isFinite(timeout) || timeout <= 0) {
     return Promise.reject(new Error(`Polling timeout must be a positive finite number, got ${timeout}.`));

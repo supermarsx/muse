@@ -171,6 +171,12 @@ describe('style', () => {
       // Suppress unhandled rejection from happy-dom failing to load resources
       result.catch(() => {});
     });
+
+    it('throws when URL array contains an empty string', () => {
+      expect(() => injectStyleUrls(['https://example.com/a.css', ''])).toThrow(
+        'injectStyleUrls: URL array contains an empty string.',
+      );
+    });
   });
 
   describe('applyInlineStyle with wait', () => {

@@ -20,6 +20,12 @@ import type { ArrayContainsParams } from './types/array.type';
  * ```
  */
 export function containsAny({ sourceString, substrings }: ArrayContainsParams): boolean {
+  if (typeof sourceString !== 'string') {
+    throw new Error('containsAny: sourceString must be a string.');
+  }
+  if (!Array.isArray(substrings) || substrings.length === 0) {
+    throw new Error('containsAny: substrings must be a non-empty array.');
+  }
   for (const sub of substrings) {
     if (sourceString.includes(sub)) {
       return true;

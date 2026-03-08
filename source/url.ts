@@ -59,9 +59,7 @@ export function matchUrl(options: MatchUrlOptions): boolean {
 
   let compiled = patternCache.get(options.pattern);
   if (!compiled) {
-    const escaped = options.pattern
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '[^\\s]*');
+    const escaped = options.pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
     compiled = new RegExp(`^${escaped}$`);
     // LRU eviction: remove oldest entry when cache is full
     if (patternCache.size >= MAX_PATTERN_CACHE_SIZE) {
@@ -202,7 +200,11 @@ export function onUrlChange(callback: (url: string) => void): NavigationHandle {
  */
 export function getUrlParams(url?: string): Record<string, string> {
   try {
-    const searchParams = new URL(url ?? window.location.href).searchParams;
+    const targetUrl = url ?? window.location.href;
+    if (targetUrl.length > MAX_URL_LENGTH) {
+      throw new Error(`URL exceeds maximum length of ${MAX_URL_LENGTH} characters.`);
+    }
+    const searchParams = new URL(targetUrl).searchParams;
     return Object.fromEntries(searchParams.entries());
   } catch (error: unknown) {
     throw new Error(`Invalid URL: "${url ?? ''}"`, { cause: error });
