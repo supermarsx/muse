@@ -64,6 +64,13 @@ export function injectElement<T extends HTMLElement>(
   errorLabel: string,
 ): Promise<Event> | T {
   if (wait) {
+    // Inline content (no src/href) never fires load/error events.
+    // Resolve immediately after appending to avoid hanging forever.
+    if (!errorLabel) {
+      target.appendChild(element);
+      return Promise.resolve(new Event('load'));
+    }
+
     return new Promise<Event>((resolve, reject) => {
       element.onload = (event: Event) => resolve(event);
       element.onerror = (event) =>
